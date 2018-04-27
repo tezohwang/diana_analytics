@@ -11,16 +11,17 @@ import numpy
 # Controller Views
 
 
-class Facebook:
+class RecommendFacebook:
 	def update_recommendations(self):
 		pass
 
 
-class Naver:
+class RecommendNaver:
 	# generate recommendations for daily report
 	def recommend_for_report(self):
 		db = connect_db('autobidding')
 		users = list(db['users'].find())
+		contents = []
 		for user in users:
 			customer_id = str(user['customer_id'])
 			content = {
@@ -39,10 +40,10 @@ class Naver:
 						content['naver']['adgroups'], key=lambda adgroup: adgroup['name'])
 				self.recommend_entity(content)
 				
-				print(content)
+				contents.append(content)
 				print("recommend_for_report done: {}".format(datetime.datetime.now()))
 				# send_mail(customer_id, user_email, content)
-		return content
+		return contents
 
 	# fetch campaign & adgroup data from DB by customer_id
 	def fetch_by_customer_id(self, customer_id, content):
