@@ -16,8 +16,100 @@ class RecommendFacebook:
     generate recommendations for Facebook ads
     '''
 
+    def __init__(self):
+        self.db = connect_db('diana')
+        self.fbadaccounts = self.db['fbadaccounts']
+        self.fbads = self.db['fbads']
+
+    def recommend_for_report(self):
+        contents = []
+        users = list(self.db['userinfo'].find())
+        for user in users:
+            content = {
+                "user_id": user['user_id'],
+                "network_id": user['network_id'],
+                "username": user['username'],
+                "email": user['email'],
+                "facebook": {
+                    "adaccounts": [],
+                    "ads": [],
+                    "recos": [],
+                },
+                "lang": 'en',
+            }
+
+            # long access token expiry check
+            # if long access token will be expired within 7 days
+
+            adaccounts = self.get_adaccounts(content)
+            # print(adaccounts)
+
+            for adaccount in adaccounts:
+                ads = self.get_ads(adaccount, content)
+
+                if ads:
+                    for ad in ads:
+                        self.recommend_ad(ad, content)
+            
+            contents.append(content)
+        print(contents)
+
+        print("recommend_for_report done: {}".format(datetime.datetime.now()))
+        return contents
+
+
+    def get_adaccounts(self, content):
+        adaccounts = list(self.fbadaccounts.find(
+            {"network_id": content['network_id']}
+        ))
+        # content['facebook']['adaccounts'] += adaccounts
+        return adaccounts
+
+    def get_ads(self, adaccount, content):
+        ads = list(self.fbads.find(
+            {
+                "account_id": adaccount['account_id'],
+                "yesterday.spend": {"$gt": 0},
+            }
+        ))
+        content['facebook']['ads'] += ads
+        return ads
+
+    def recommend_ad(self, ad, content):
+        # for yesterday
+        self.ctr_check()
+        self.limit_check()
+
+        # for last 7days
+        self.frequency_check()
+
+        # for last 3days
+        self.spend_check()
+        self.cpm_check()
+        self.cpc_check()
+        self.relevance_score_check()
+
+        print("recommend_ad done: {}".format(datetime.datetime.now()))
+        return content
+
+    def ctr_check(self):
+        pass
+
+    def limit_check(self):
+        pass
+
+    def frequency_check(self):
+        pass
+
+    def spend_check(self):
+        pass
+
+    def cpm_check(self):
+        pass
+
+
     def update_recommendations(self):
-        print("update_recommendations!!")
+        pass
 
 
 class RecommendNaver:
@@ -25,9 +117,14 @@ class RecommendNaver:
     generate recommendations for daily report
     '''
 
+    def __init__(self):
+        self.db = connect_db('diana')
+        self.nvkeywords = self.db['nvkeywords']
+        self.nvaccounts = self.db['nvaccounts']
+
     def recommend_for_report(self):
-        db = connect_db('autobidding')
-        users = list(db['users'].find())
+        autobid_db = connect_db('autobidding')
+        users = list(autobid_db['users'].find())
 
         # # 다이아나 members & sign up 프로세스 완성되면 추가 적용
         # db = connect_db('diana')
@@ -46,9 +143,10 @@ class RecommendNaver:
             customer_id = str(user['customer_id'])
             user_email = ['tony.hwang@wizpace.com']
             content = {
-                'customer_id': customer_id,
-                'username': user['user_id'],
-                'user_email': user_email,
+                "customer_id": customer_id,
+                "username": user['user_id'],
+                "user_email": user_email,
+                "naver": {},
             }
             self.fetch_by_customer_id(content)
 
@@ -68,11 +166,9 @@ class RecommendNaver:
         '''
         fetch campaign & adgroup data from DB by customer_id
         '''
-        db = connect_db('diana')
-        content['naver'] = {}
 
         # 오늘 status가 ELIGIBLE(ON)인 캠페인들
-        campaigns_on_today = list(db['nvcampaigns'].find(
+        campaigns_on_today = list(self.db['nvcampaigns'].find(
             {
                 "customer_id": content['customer_id'],
                 "status": "ELIGIBLE",
@@ -82,7 +178,7 @@ class RecommendNaver:
             content['naver']['campaigns'] = campaigns_on_today
 
         # 오늘 status가 ELIGIBLE(ON), 어제 stat이 있는 광고그룹들
-        adgroups_on_today = list(db['nvadgroups'].find(
+        adgroups_on_today = list(self.db['nvadgroups'].find(
             {
                 "customer_id": content['customer_id'],
                 "status": "ELIGIBLE",
@@ -100,12 +196,9 @@ class RecommendNaver:
         '''
         '''
         content['naver']['recos'] = []
-        db = connect_db('diana')
-        nvkeywords = db['nvkeywords']
-        nvstats = db['nvstats']
 
         # 현재까지 1000원 이상 사용한 키워드 리스트
-        keyword_list = list(nvkeywords.find(
+        keyword_list = list(self.nvkeywords.find(
             {
                 'customer_id': content['customer_id'],
                 'last_month.spend': {'$gte': THRESHOLD['spend'][content['username']]},
@@ -113,16 +206,16 @@ class RecommendNaver:
         ))
 
         for keyword in keyword_list:
-            self.recommend_keyword(content, nvstats, keyword)
+            self.recommend_keyword(content, keyword)
 
         print("recommend_entity done: {}".format(datetime.datetime.now()))
         return content
 
-    def recommend_keyword(self, content, nvstats, keyword):
+    def recommend_keyword(self, content, keyword):
         '''
         '''
         # 7일전부터 어제까지의 데이터
-        data_7days = list(nvstats.find(
+        data_7days = list(self.nvstats.find(
             {
                 'res_id': keyword['keyword_id'],
                 'type': 'keyword',
@@ -161,7 +254,6 @@ class RecommendNaver:
                 )
         # 지난 7일간 평균 CPC 대비 어제 CPC가 급상승(2배 이상)한 키워드 검출 (CPC가 0인 데이터는 제외)
         if data_7days:
-
             cpc_for_7days = []
             for data in data_7days:
                 if 'cpc' in data:
@@ -222,16 +314,13 @@ class RecommendNaver:
         '''
         update recommendations of every keyword with data of 7days and yesterday
         '''
-        db = connect_db('diana')
-        nvkeywords = db['nvkeywords']
-        nvaccounts = db['nvaccounts']
-        keyword_list = nvkeywords.find({"status": "ELIGIBLE"})
+        keyword_list = self.nvkeywords.find({"status": "ELIGIBLE"})
 
         for keyword in keyword_list:
             print("Keyword: {}".format(keyword['name']))
 
             recos = []
-            username = nvaccounts.find_one({"client_customer_id": keyword['customer_id']})[
+            username = self.nvaccounts.find_one({"client_customer_id": keyword['customer_id']})[
                 'client_login_id']
             last_week = keyword['last_week']
             yesterday = keyword['yesterday']
@@ -267,7 +356,7 @@ class RecommendNaver:
                 recos.append(reco)
 
             # update recos for each keyword
-            nvkeywords.update_one(
+            self.nvkeywords.update_one(
                 {"keyword_id": keyword['keyword_id']},
                 {"$set": {"recommendation": recos}}
             )
