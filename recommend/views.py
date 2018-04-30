@@ -20,6 +20,7 @@ class RecommendFacebook:
         self.db = connect_db('diana')
         self.fbadaccounts = self.db['fbadaccounts']
         self.fbads = self.db['fbads']
+        self.fbinsights = self.db['fbinsights']
 
     def recommend_for_report(self):
         contents = []
@@ -45,14 +46,14 @@ class RecommendFacebook:
             # print(adaccounts)
 
             for adaccount in adaccounts:
-                ads = self.get_ads(adaccount, content)
+                ads = self.get_ads(content, adaccount)
 
                 if ads:
                     for ad in ads:
-                        self.recommend_ad(ad, content)
+                        self.recommend_ad(content, ad)
             
             contents.append(content)
-        print(contents)
+        # print(contents)
 
         print("recommend_for_report done: {}".format(datetime.datetime.now()))
         return contents
@@ -65,7 +66,7 @@ class RecommendFacebook:
         # content['facebook']['adaccounts'] += adaccounts
         return adaccounts
 
-    def get_ads(self, adaccount, content):
+    def get_ads(self, content, adaccount):
         ads = list(self.fbads.find(
             {
                 "account_id": adaccount['account_id'],
@@ -75,19 +76,34 @@ class RecommendFacebook:
         content['facebook']['ads'] += ads
         return ads
 
-    def recommend_ad(self, ad, content):
+    def recommend_ad(self, content, ad):
+        data_7days = list(self.fbinsights.find(
+            {
+                "ad_id": ad['ad_id'],
+                "publisher_platform": "facebook",
+                "date_stop": {"$gte": datetime.datetime.now() - datetime.timedelta(days=7)}
+            }
+        ))[-7:]
+
         # for yesterday
-        self.ctr_check()
-        self.limit_check()
+        if len(data_7days) >= 1:
+            data = data_7days[-1]
+            self.ctr_check()
+            self.limit_check()
+            print("yesterday check done")
 
-        # for last 7days
-        self.frequency_check()
+        # for at most last 7days
+        if len(data_7days) >= 3:
+            self.frequency_check()
+            print("last 7days check done")
 
-        # for last 3days
-        self.spend_check()
-        self.cpm_check()
-        self.cpc_check()
-        self.relevance_score_check()
+        # for at least last 3days
+        if len(data_7days) >= 3:
+            self.spend_check()
+            self.cpm_check()
+            self.cpc_check()
+            self.relevance_score_check()
+            print("last 3days check done")
 
         print("recommend_ad done: {}".format(datetime.datetime.now()))
         return content
@@ -105,6 +121,12 @@ class RecommendFacebook:
         pass
 
     def cpm_check(self):
+        pass
+
+    def cpc_check(self):
+        pass
+
+    def relevance_score_check(self):
         pass
 
 
