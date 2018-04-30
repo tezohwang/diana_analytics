@@ -1,9 +1,10 @@
-from recommend.views import Facebook, Naver
+from recommend.views import RecommendFacebook, RecommendNaver
 
 
 def main():
-	Naver().update_recommendations()
+    RecommendNaver().update_recommendations()
+    RecommendFacebook().update_recommendations()
 
 
 if __name__ == '__main__':
-	main()
+    main()

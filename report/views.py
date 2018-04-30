@@ -16,53 +16,52 @@ from .config import *
 from .forms import *
 
 
-# Facebook
+# Controller Views
 
 
 class ReportFacebook:
-	pass
-
-# Naver
+    def send_report(self):
+        print("send_report!!")
 
 
 class ReportNaver:
-	def send_report(self):
-		contents = RecommendNaver().recommend_for_report()
-		for content in contents:
-			self.send_mail(content)
+    def send_report(self):
+        '''
+        '''
+        contents = RecommendNaver().recommend_for_report()
+        for content in contents:
+            self.send_mail(content)
 
-		print("send_report done: {}".format(datetime.datetime.now()))
-		return contents
+        print("send_report done: {}".format(datetime.datetime.now()))
+        return contents
 
-	def send_mail(self, content):
-		# 모든 채널에 대한 데이터가 없으면, 메일을 보내지 않는다.
-		if not 'naver' in content:
-			return print("No data of Naver: {}".format(datetime.datetime.now()))
+    def send_mail(self, content):
+        '''
+        '''
+        if not 'naver' in content:
+            return print("No data of Naver: {}".format(datetime.datetime.now()))
 
-		if not 'campaigns' in content['naver']:
-			return print("No campaigns data of Naver: {}".format(datetime.datetime.now()))
+        if not 'campaigns' in content['naver']:
+            return print("No campaigns data of Naver: {}".format(datetime.datetime.now()))
 
-		smtp = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-		smtp.login(MAIL['login_id'], MAIL['login_pw'])
-		msg = MIMEMultipart('alternative')
-		msg['Subject'] = 'Diana Naver Report on {}'.format((datetime.datetime.now(
-		) - datetime.timedelta(days=FETCH['from_days'])).strftime('%Y-%m-%d'))
-		msg['From'] = MAIL['from']
-		recipients = content['user_email']
-		msg['To'] = ','.join(recipients)
-		html = create_mail(content)
+        smtp = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        smtp.login(MAIL['login_id'], MAIL['login_pw'])
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = 'Diana Naver Report on {}'.format((datetime.datetime.now(
+        ) - datetime.timedelta(days=FETCH['from_days'])).strftime('%Y-%m-%d'))
+        msg['From'] = MAIL['from']
+        recipients = content['user_email']
+        msg['To'] = ','.join(recipients)
+        html = create_mail(content)
 
-		if not html:
-			print(content)
-			print("send_mail failed: {}".format(datetime.datetime.now()))
-			return content
+        if not html:
+            print(content)
+            print("send_mail failed: {}".format(datetime.datetime.now()))
+            return content
 
-		msg.attach(MIMEText(html, 'html'))
-		smtp.sendmail(msg['From'], recipients, msg.as_string())
-		smtp.quit()
+        msg.attach(MIMEText(html, 'html'))
+        smtp.sendmail(msg['From'], recipients, msg.as_string())
+        smtp.quit()
 
-		print("send_mail done: {}".format(datetime.datetime.now()))
-		return content
-
-
-# Adwords
+        print("send_mail done: {}".format(datetime.datetime.now()))
+        return content

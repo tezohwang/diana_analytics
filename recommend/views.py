@@ -12,27 +12,34 @@ import numpy
 
 
 class RecommendFacebook:
+    '''
+    generate recommendations for Facebook ads
+    '''
+
     def update_recommendations(self):
-        pass
+        print("update_recommendations!!")
 
 
 class RecommendNaver:
-    # generate recommendations for daily report
+    '''
+    generate recommendations for daily report
+    '''
+
     def recommend_for_report(self):
         db = connect_db('autobidding')
         users = list(db['users'].find())
 
-		# # 다이아나 members & sign up 프로세스 완성되면 추가 적용
-		# db = connect_db('diana')
-		# users = list(db['users'].find(
-		# 	{"type": "naver"},
-		# ))
-		# members = db['members']
-		# contents = []
-		# for user in users:
-		# 	user_email = members.find_one(
-		# 		{"user_id": user['user_id']}
-		# 	)['email']
+        # # 다이아나 members & sign up 프로세스 완성되면 추가 적용
+        # db = connect_db('diana')
+        # users = list(db['users'].find(
+        # 	{"type": "naver"},
+        # ))
+        # members = db['members']
+        # contents = []
+        # for user in users:
+        # 	user_email = members.find_one(
+        # 		{"user_id": user['user_id']}
+        # 	)['email']
 
         contents = []
         for user in users:
@@ -57,8 +64,10 @@ class RecommendNaver:
         print("recommend_for_report done: {}".format(datetime.datetime.now()))
         return contents
 
-    # fetch campaign & adgroup data from DB by customer_id
     def fetch_by_customer_id(self, content):
+        '''
+        fetch campaign & adgroup data from DB by customer_id
+        '''
         db = connect_db('diana')
         content['naver'] = {}
 
@@ -88,6 +97,8 @@ class RecommendNaver:
         return content
 
     def recommend_entity(self, content):
+        '''
+        '''
         content['naver']['recos'] = []
         db = connect_db('diana')
         nvkeywords = db['nvkeywords']
@@ -108,6 +119,8 @@ class RecommendNaver:
         return content
 
     def recommend_keyword(self, content, nvstats, keyword):
+        '''
+        '''
         # 7일전부터 어제까지의 데이터
         data_7days = list(nvstats.find(
             {
@@ -116,7 +129,6 @@ class RecommendNaver:
                 'date_end': {'$gte': (datetime.datetime.now() - datetime.timedelta(days=7))}
             }
         ))
-
         # 지난 7일간 1000원 이상 사용했지만, 전환이 전혀 없는 키워드 검출
         sum_ccnts = sum([data['ccnt']
                          for data in data_7days if 'ccnt' in data])
@@ -130,14 +142,12 @@ class RecommendNaver:
                     'reco': '7일간 소진 비용({}원) 대비 전환이 전혀 없습니다.'.format(sum_spends, ','),
                 }
             )
-
         # 지난 7일간 CPC 대비 CTR이 가장 좋은 순위를 추천
         ctr_by_cpc = []
         for data in data_7days:
             if 'ctr' in data and 'cpc' in data:
                 if data['ctr'] * data['cpc']:
                     ctr_by_cpc.append(data['ctr']/data['cpc'])
-
         if ctr_by_cpc:
             max_index = ctr_by_cpc.index(max(ctr_by_cpc))
             best_rank = data_7days[max_index]['average_rank']
@@ -149,7 +159,6 @@ class RecommendNaver:
                         'reco': '7일간 최적 효율 순위는 {}위 입니다'.format(best_rank),
                     }
                 )
-
         # 지난 7일간 평균 CPC 대비 어제 CPC가 급상승(2배 이상)한 키워드 검출 (CPC가 0인 데이터는 제외)
         if data_7days:
 
@@ -169,7 +178,6 @@ class RecommendNaver:
                             'reco': '7일간 평균({}원)에 비해 CPC({}원)가 급상승 했습니다'.format(round(avg_cpc_for_7days, 2), data_7days[-1]['cpc']),
                         }
                     )
-
         # 지난 7일간 평균 CPM 대비 어제 CPM이 급상승(2배 이상)한 키워드 검출 (CPM이 0인 데이터는 제외)
         if data_7days:
             cpm_for_7days = []
@@ -188,7 +196,6 @@ class RecommendNaver:
                             'reco': '7일간 평균({}원)에 비해 노출 경쟁(CPM, {}원)이 급상승 했습니다'.format(round(avg_cpm_for_7days, 2), round(data_7days[-1]['spend']/data_7days[-1]['impressions'], 2)),
                         }
                     )
-
         # 지난 7일간 평균 Impressions 대비 어제 Impressions 급상승(2배 이상)한 키워드 검출 (Impressions이 0인 데이터는 제외)
         if data_7days:
             imp_for_7days = []
@@ -212,6 +219,9 @@ class RecommendNaver:
         return content
 
     def update_recommendations(self):
+        '''
+        update recommendations of every keyword with data of 7days and yesterday
+        '''
         db = connect_db('diana')
         nvkeywords = db['nvkeywords']
         nvaccounts = db['nvaccounts']
@@ -264,6 +274,3 @@ class RecommendNaver:
 
         print("update_recommendations done: {}".format(datetime.datetime.now()))
         return recos
-
-
-# ADWORDS
