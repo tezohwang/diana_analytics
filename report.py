@@ -1,9 +1,9 @@
-from recommend.views import Facebook, Naver
+from report.views import ReportNaver
 
 
 def main():
-    Naver().recommend_for_report()
+	ReportNaver().send_report()
 
 
 if __name__ == '__main__':
-    main()
+	main()

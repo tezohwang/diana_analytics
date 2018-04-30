@@ -12,243 +12,258 @@ import numpy
 
 
 class RecommendFacebook:
-	def update_recommendations(self):
-		pass
+    def update_recommendations(self):
+        pass
 
 
 class RecommendNaver:
-	# generate recommendations for daily report
-	def recommend_for_report(self):
-		db = connect_db('autobidding')
-		users = list(db['users'].find())
-		contents = []
-		for user in users:
-			customer_id = str(user['customer_id'])
-			content = {
-				'customer_id': customer_id,
-				'username': user['user_id'],
-			}
-			self.fetch_by_customer_id(customer_id, content)
-			user_email = ['tony.hwang@wizpace.com']
-			# user_email = ['tony.hwang@wizpace.com', 'support@wizpace.com']
-			if user_email:
-				if 'campaigns' in content['naver']:
-					content['naver']['campaigns'] = sorted(
-						content['naver']['campaigns'], key=lambda campaign: campaign['name'])
-				if 'adgroups' in content['naver']:
-					content['naver']['adgroups'] = sorted(
-						content['naver']['adgroups'], key=lambda adgroup: adgroup['name'])
-				self.recommend_entity(content)
-				
-				contents.append(content)
-				print("recommend_for_report done: {}".format(datetime.datetime.now()))
-				# send_mail(customer_id, user_email, content)
-		return contents
+    # generate recommendations for daily report
+    def recommend_for_report(self):
+        db = connect_db('autobidding')
+        users = list(db['users'].find())
 
-	# fetch campaign & adgroup data from DB by customer_id
-	def fetch_by_customer_id(self, customer_id, content):
-		db = connect_db('diana')
-		content['naver'] = {}
+		# # 다이아나 members & sign up 프로세스 완성되면 추가 적용
+		# db = connect_db('diana')
+		# users = list(db['users'].find(
+		# 	{"type": "naver"},
+		# ))
+		# members = db['members']
+		# contents = []
+		# for user in users:
+		# 	user_email = members.find_one(
+		# 		{"user_id": user['user_id']}
+		# 	)['email']
 
-		# 오늘 status가 ELIGIBLE(ON)인 캠페인들
-		campaigns_on_today = list(db['nvcampaigns'].find(
-			{
-				"customer_id": customer_id,
-				"status": "ELIGIBLE",
-			}
-		))
-		if campaigns_on_today:
-			content['naver']['campaigns'] = campaigns_on_today
+        contents = []
+        for user in users:
+            customer_id = str(user['customer_id'])
+            user_email = ['tony.hwang@wizpace.com']
+            content = {
+                'customer_id': customer_id,
+                'username': user['user_id'],
+                'user_email': user_email,
+            }
+            self.fetch_by_customer_id(content)
 
-		# 오늘 status가 ELIGIBLE(ON), 어제 stat이 있는 광고그룹들
-		adgroups_on_today = list(db['nvadgroups'].find(
-			{
-				"customer_id": customer_id,
-				"status": "ELIGIBLE",
-				"status_reason": "ELIGIBLE",
-				"yesterday": {'$ne': {}}
-			}
-		))
-		if adgroups_on_today:
-			content['naver']['adgroups'] = adgroups_on_today
+            if 'campaigns' in content['naver']:
+                content['naver']['campaigns'] = sorted(
+                    content['naver']['campaigns'], key=lambda campaign: campaign['name'])
+            if 'adgroups' in content['naver']:
+                content['naver']['adgroups'] = sorted(
+                    content['naver']['adgroups'], key=lambda adgroup: adgroup['name'])
+            self.recommend_entity(content)
+            contents.append(content)
 
-		print("fetch_naver_data done")
-		return content
+        print("recommend_for_report done: {}".format(datetime.datetime.now()))
+        return contents
 
-	def recommend_entity(self, content):
-		content['naver']['recos'] = []
-		db = connect_db('diana')
-		nvkeywords = db['nvkeywords']
-		nvstats = db['nvstats']
+    # fetch campaign & adgroup data from DB by customer_id
+    def fetch_by_customer_id(self, content):
+        db = connect_db('diana')
+        content['naver'] = {}
 
-		# 현재까지 1000원 이상 사용한 키워드 리스트
-		keyword_list = list(nvkeywords.find(
-			{
-				'customer_id': content['customer_id'],
-				'last_month.spend': {'$gte': THRESHOLD['spend'][content['username']]},
-			},
-		))
-		print('키워드 리스트: ', keyword_list)
-		for keyword in keyword_list:
-			self.recommend_keyword(content, nvstats, keyword)
-		return content
+        # 오늘 status가 ELIGIBLE(ON)인 캠페인들
+        campaigns_on_today = list(db['nvcampaigns'].find(
+            {
+                "customer_id": content['customer_id'],
+                "status": "ELIGIBLE",
+            }
+        ))
+        if campaigns_on_today:
+            content['naver']['campaigns'] = campaigns_on_today
 
-	def recommend_keyword(self, content, nvstats, keyword):
-		# 7일전부터 어제까지의 데이터
-		data_7days = list(nvstats.find(
-			{
-				'res_id': keyword['keyword_id'],
-				'type': 'keyword',
-						'date_end': {'$gte': (datetime.datetime.now() - datetime.timedelta(days=7))}
-			}
-		))
+        # 오늘 status가 ELIGIBLE(ON), 어제 stat이 있는 광고그룹들
+        adgroups_on_today = list(db['nvadgroups'].find(
+            {
+                "customer_id": content['customer_id'],
+                "status": "ELIGIBLE",
+                "status_reason": "ELIGIBLE",
+                "yesterday": {'$ne': {}}
+            }
+        ))
+        if adgroups_on_today:
+            content['naver']['adgroups'] = adgroups_on_today
 
-		# 지난 7일간 1000원 이상 사용했지만, 전환이 전혀 없는 키워드 검출
-		sum_ccnts = sum([data['ccnt']
-						for data in data_7days if 'ccnt' in data])
-		sum_spends = sum([data['spend']
-						for data in data_7days if 'spend' in data])
-		if sum_ccnts == 0 and sum_spends >= THRESHOLD['no_ccnt_spend'][content['username']]:
-			content['naver']['recos'].append(
-				{
-					'keyword_id': keyword['keyword_id'],
-					'name': keyword['name'],
-					'reco': '7일간 소진 비용({}원) 대비 전환이 전혀 없습니다.'.format(sum_spends, ','),
-				}
-			)
+        print("fetch_naver_data done: {}".format(datetime.datetime.now()))
+        return content
 
-		# 지난 7일간 CPC 대비 CTR이 가장 좋은 순위를 추천
-		ctr_by_cpc = []
-		for data in data_7days:
-			if 'ctr' in data and 'cpc' in data:
-				if data['ctr'] * data['cpc']:
-					ctr_by_cpc.append(data['ctr']/data['cpc'])
+    def recommend_entity(self, content):
+        content['naver']['recos'] = []
+        db = connect_db('diana')
+        nvkeywords = db['nvkeywords']
+        nvstats = db['nvstats']
 
-		if ctr_by_cpc:
-			max_index = ctr_by_cpc.index(max(ctr_by_cpc))
-			best_rank = data_7days[max_index]['average_rank']
-			if best_rank:
-				content['naver']['recos'].append(
-					{
-						'keyword_id': keyword['keyword_id'],
-						'name': keyword['name'],
-						'reco': '7일간 최적 효율 순위는 {}위 입니다'.format(best_rank),
-					}
-				)
+        # 현재까지 1000원 이상 사용한 키워드 리스트
+        keyword_list = list(nvkeywords.find(
+            {
+                'customer_id': content['customer_id'],
+                'last_month.spend': {'$gte': THRESHOLD['spend'][content['username']]},
+            },
+        ))
 
-		# 지난 7일간 평균 CPC 대비 어제 CPC가 급상승(2배 이상)한 키워드 검출 (CPC가 0인 데이터는 제외)
-		if data_7days:
+        for keyword in keyword_list:
+            self.recommend_keyword(content, nvstats, keyword)
 
-			cpc_for_7days = []
-			for data in data_7days:
-				if 'cpc' in data:
-					if data['cpc']:
-						cpc_for_7days.append(data['cpc'])
-			avg_cpc_for_7days = numpy.mean(cpc_for_7days)
+        print("recommend_entity done: {}".format(datetime.datetime.now()))
+        return content
 
-			if all([avg_cpc_for_7days, 'cpc' in data_7days[-1]]):
-				if data_7days[-1]['cpc'] > avg_cpc_for_7days * THRESHOLD['avg_cpc_times'][content['username']]:
-					content['naver']['recos'].append(
-						{
-							'keyword_id': keyword['keyword_id'],
-							'name': keyword['name'],
-							'reco': '7일간 평균({}원)에 비해 CPC({}원)가 급상승 했습니다'.format(round(avg_cpc_for_7days, 2), data_7days[-1]['cpc']),
-						}
-					)
+    def recommend_keyword(self, content, nvstats, keyword):
+        # 7일전부터 어제까지의 데이터
+        data_7days = list(nvstats.find(
+            {
+                'res_id': keyword['keyword_id'],
+                'type': 'keyword',
+                'date_end': {'$gte': (datetime.datetime.now() - datetime.timedelta(days=7))}
+            }
+        ))
 
-		# 지난 7일간 평균 CPM 대비 어제 CPM이 급상승(2배 이상)한 키워드 검출 (CPM이 0인 데이터는 제외)
-		if data_7days:
-			cpm_for_7days = []
-			for data in data_7days:
-				if 'impressions' in data and 'spend' in data:
-					if data['impressions'] * data['spend']:
-						cpm_for_7days.append(data['spend']/data['impressions'])
-			avg_cpm_for_7days = numpy.mean(cpm_for_7days)
+        # 지난 7일간 1000원 이상 사용했지만, 전환이 전혀 없는 키워드 검출
+        sum_ccnts = sum([data['ccnt']
+                         for data in data_7days if 'ccnt' in data])
+        sum_spends = sum([data['spend']
+                          for data in data_7days if 'spend' in data])
+        if sum_ccnts == 0 and sum_spends >= THRESHOLD['no_ccnt_spend'][content['username']]:
+            content['naver']['recos'].append(
+                {
+                    'keyword_id': keyword['keyword_id'],
+                    'name': keyword['name'],
+                    'reco': '7일간 소진 비용({}원) 대비 전환이 전혀 없습니다.'.format(sum_spends, ','),
+                }
+            )
 
-			if all([avg_cpm_for_7days, 'spend' in data_7days[-1], 'impressions' in data_7days[-1]]):
-				if data_7days[-1]['spend']/data_7days[-1]['impressions'] > avg_cpm_for_7days * THRESHOLD['avg_cpm_times'][content['username']]:
-					content['naver']['recos'].append(
-						{
-							'keyword_id': keyword['keyword_id'],
-							'name': keyword['name'],
-							'reco': '7일간 평균({}원)에 비해 노출 경쟁(CPM, {}원)이 급상승 했습니다'.format(round(avg_cpm_for_7days, 2), round(data_7days[-1]['spend']/data_7days[-1]['impressions'], 2)),
-						}
-					)
+        # 지난 7일간 CPC 대비 CTR이 가장 좋은 순위를 추천
+        ctr_by_cpc = []
+        for data in data_7days:
+            if 'ctr' in data and 'cpc' in data:
+                if data['ctr'] * data['cpc']:
+                    ctr_by_cpc.append(data['ctr']/data['cpc'])
 
-		# 지난 7일간 평균 Impressions 대비 어제 Impressions 급상승(2배 이상)한 키워드 검출 (Impressions이 0인 데이터는 제외)
-		if data_7days:
-			imp_for_7days = []
-			for data in data_7days:
-				if 'impressions' in data:
-					if data['impressions']:
-						imp_for_7days.append(data['impressions'])
-			avg_imp_for_7days = numpy.mean(imp_for_7days)
+        if ctr_by_cpc:
+            max_index = ctr_by_cpc.index(max(ctr_by_cpc))
+            best_rank = data_7days[max_index]['average_rank']
+            if best_rank:
+                content['naver']['recos'].append(
+                    {
+                        'keyword_id': keyword['keyword_id'],
+                        'name': keyword['name'],
+                        'reco': '7일간 최적 효율 순위는 {}위 입니다'.format(best_rank),
+                    }
+                )
 
-			if all([avg_imp_for_7days, 'impressions' in data_7days[-1]]):
-				if data_7days[-1]['impressions'] > avg_imp_for_7days * THRESHOLD['avg_imp_times'][content['username']]:
-					content['naver']['recos'].append(
-						{
-							'keyword_id': keyword['keyword_id'],
-							'name': keyword['name'],
-							'reco': '7일간 평균({}회)에 비해 노출({}회)이 급상승 했습니다'.format(round(avg_imp_for_7days, 2), data_7days[-1]['impressions']),
-						}
-					)
-		return content
+        # 지난 7일간 평균 CPC 대비 어제 CPC가 급상승(2배 이상)한 키워드 검출 (CPC가 0인 데이터는 제외)
+        if data_7days:
 
+            cpc_for_7days = []
+            for data in data_7days:
+                if 'cpc' in data:
+                    if data['cpc']:
+                        cpc_for_7days.append(data['cpc'])
+            avg_cpc_for_7days = numpy.mean(cpc_for_7days)
 
-	def update_recommendations(self):
-		db = connect_db('diana')
-		nvkeywords = db['nvkeywords']
-		nvaccounts = db['nvaccounts']
-		keyword_list = nvkeywords.find({"status": "ELIGIBLE"})
+            if all([avg_cpc_for_7days, 'cpc' in data_7days[-1]]):
+                if data_7days[-1]['cpc'] > avg_cpc_for_7days * THRESHOLD['avg_cpc_times'][content['username']]:
+                    content['naver']['recos'].append(
+                        {
+                            'keyword_id': keyword['keyword_id'],
+                            'name': keyword['name'],
+                            'reco': '7일간 평균({}원)에 비해 CPC({}원)가 급상승 했습니다'.format(round(avg_cpc_for_7days, 2), data_7days[-1]['cpc']),
+                        }
+                    )
 
-		for keyword in keyword_list:
-			print("Keyword: {}".format(keyword['name']))
+        # 지난 7일간 평균 CPM 대비 어제 CPM이 급상승(2배 이상)한 키워드 검출 (CPM이 0인 데이터는 제외)
+        if data_7days:
+            cpm_for_7days = []
+            for data in data_7days:
+                if 'impressions' in data and 'spend' in data:
+                    if data['impressions'] * data['spend']:
+                        cpm_for_7days.append(data['spend']/data['impressions'])
+            avg_cpm_for_7days = numpy.mean(cpm_for_7days)
 
-			recos = []
-			username = nvaccounts.find_one({"client_customer_id": keyword['customer_id']})[
-				'client_login_id']
-			last_week = keyword['last_week']
-			yesterday = keyword['yesterday']
+            if all([avg_cpm_for_7days, 'spend' in data_7days[-1], 'impressions' in data_7days[-1]]):
+                if data_7days[-1]['spend']/data_7days[-1]['impressions'] > avg_cpm_for_7days * THRESHOLD['avg_cpm_times'][content['username']]:
+                    content['naver']['recos'].append(
+                        {
+                            'keyword_id': keyword['keyword_id'],
+                            'name': keyword['name'],
+                            'reco': '7일간 평균({}원)에 비해 노출 경쟁(CPM, {}원)이 급상승 했습니다'.format(round(avg_cpm_for_7days, 2), round(data_7days[-1]['spend']/data_7days[-1]['impressions'], 2)),
+                        }
+                    )
 
-			# 지난 7일간 1000원 이상 사용했지만, 전환이 전혀 없는 키워드 검출
-			if last_week['ccnt'] == 0 and last_week['spend'] >= THRESHOLD['no_ccnt_spend'][username]:
-				reco = "7일간 소진 비용({}원) 대비 전환이 전혀 없습니다.".format(
-					format(last_week['spend'], ','))
-				recos.append(reco)
+        # 지난 7일간 평균 Impressions 대비 어제 Impressions 급상승(2배 이상)한 키워드 검출 (Impressions이 0인 데이터는 제외)
+        if data_7days:
+            imp_for_7days = []
+            for data in data_7days:
+                if 'impressions' in data:
+                    if data['impressions']:
+                        imp_for_7days.append(data['impressions'])
+            avg_imp_for_7days = numpy.mean(imp_for_7days)
 
-			# 지난 7일간 평균 CPC 대비 어제 CPC가 급상승(2배 이상)한 키워드 검출 (CPC가 0인 데이터는 제외)
-			if yesterday['cpc'] > last_week['cpc'] * THRESHOLD['avg_cpc_times'][username]:
-				last_week_cpc = format(round(last_week['cpc']), ',')
-				yesterday_cpc = format(round(yesterday['cpc']), ',')
-				reco = "7일간 평균({}원) 대비 1일 전 CPC({}원)가 급상승했습니다.".format(
-					last_week_cpc, yesterday_cpc)
-				recos.append(reco)
+            if all([avg_imp_for_7days, 'impressions' in data_7days[-1]]):
+                if data_7days[-1]['impressions'] > avg_imp_for_7days * THRESHOLD['avg_imp_times'][content['username']]:
+                    content['naver']['recos'].append(
+                        {
+                            'keyword_id': keyword['keyword_id'],
+                            'name': keyword['name'],
+                            'reco': '7일간 평균({}회)에 비해 노출({}회)이 급상승 했습니다'.format(round(avg_imp_for_7days, 2), data_7days[-1]['impressions']),
+                        }
+                    )
 
-			# 지난 7일간 평균 CPM 대비 어제 CPM이 급상승(2배 이상)한 키워드 검출 (CPM이 0인 데이터는 제외)
-			if yesterday['cpm'] > last_week['cpm'] * THRESHOLD['avg_cpc_times'][username]:
-				last_week_cpm = format(round(last_week['cpm']), ',')
-				yesterday_cpm = format(round(yesterday['cpm']), ',')
-				reco = "7일간 평균({}원) 대비 1일 전 CPM({}원)이 급상승했습니다.".format(
-					last_week_cpm, yesterday_cpm)
-				recos.append(reco)
+        print("recommend_keyword done: {}".format(datetime.datetime.now()))
+        return content
 
-			# 지난 7일간 평균 Impressions 대비 어제 Impressions 급상승(2배 이상)한 키워드 검출 (Impressions이 0인 데이터는 제외)
-			if yesterday['impressions'] > last_week['impressions'] * THRESHOLD['avg_cpc_times'][username]:
-				last_week_imp = format(round(last_week['impressions']), ',')
-				yesterday_imp = format(round(yesterday['impressions']), ',')
-				reco = "7일간 평균({}회) 대비 1일 전 노출({}회)이 급상승했습니다.".format(
-					last_week_imp, yesterday_imp)
-				recos.append(reco)
+    def update_recommendations(self):
+        db = connect_db('diana')
+        nvkeywords = db['nvkeywords']
+        nvaccounts = db['nvaccounts']
+        keyword_list = nvkeywords.find({"status": "ELIGIBLE"})
 
-			# update recos for each keyword
-			nvkeywords.update_one(
-				{"keyword_id": keyword['keyword_id']},
-				{"$set": {"recommendation": recos}}
-			)
-			print(recos)
+        for keyword in keyword_list:
+            print("Keyword: {}".format(keyword['name']))
 
-		return print("update_recommendations done: {}".format(datetime.datetime.now()))
+            recos = []
+            username = nvaccounts.find_one({"client_customer_id": keyword['customer_id']})[
+                'client_login_id']
+            last_week = keyword['last_week']
+            yesterday = keyword['yesterday']
+
+            # 지난 7일간 1000원 이상 사용했지만, 전환이 전혀 없는 키워드 검출
+            if last_week['ccnt'] == 0 and last_week['spend'] >= THRESHOLD['no_ccnt_spend'][username]:
+                reco = "7일간 소진 비용({}원) 대비 전환이 전혀 없습니다.".format(
+                    format(last_week['spend'], ','))
+                recos.append(reco)
+
+            # 지난 7일간 평균 CPC 대비 어제 CPC가 급상승(2배 이상)한 키워드 검출 (CPC가 0인 데이터는 제외)
+            if yesterday['cpc'] > last_week['cpc'] * THRESHOLD['avg_cpc_times'][username]:
+                last_week_cpc = format(round(last_week['cpc']), ',')
+                yesterday_cpc = format(round(yesterday['cpc']), ',')
+                reco = "7일간 평균({}원) 대비 1일 전 CPC({}원)가 급상승했습니다.".format(
+                    last_week_cpc, yesterday_cpc)
+                recos.append(reco)
+
+            # 지난 7일간 평균 CPM 대비 어제 CPM이 급상승(2배 이상)한 키워드 검출 (CPM이 0인 데이터는 제외)
+            if yesterday['cpm'] > last_week['cpm'] * THRESHOLD['avg_cpc_times'][username]:
+                last_week_cpm = format(round(last_week['cpm']), ',')
+                yesterday_cpm = format(round(yesterday['cpm']), ',')
+                reco = "7일간 평균({}원) 대비 1일 전 CPM({}원)이 급상승했습니다.".format(
+                    last_week_cpm, yesterday_cpm)
+                recos.append(reco)
+
+            # 지난 7일간 평균 Impressions 대비 어제 Impressions 급상승(2배 이상)한 키워드 검출 (Impressions이 0인 데이터는 제외)
+            if yesterday['impressions'] > last_week['impressions'] * THRESHOLD['avg_cpc_times'][username]:
+                last_week_imp = format(round(last_week['impressions']), ',')
+                yesterday_imp = format(round(yesterday['impressions']), ',')
+                reco = "7일간 평균({}회) 대비 1일 전 노출({}회)이 급상승했습니다.".format(
+                    last_week_imp, yesterday_imp)
+                recos.append(reco)
+
+            # update recos for each keyword
+            nvkeywords.update_one(
+                {"keyword_id": keyword['keyword_id']},
+                {"$set": {"recommendation": recos}}
+            )
+
+        print("update_recommendations done: {}".format(datetime.datetime.now()))
+        return recos
 
 
 # ADWORDS
