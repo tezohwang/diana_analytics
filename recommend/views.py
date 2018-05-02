@@ -33,9 +33,8 @@ class RecommendFacebook:
                 "username": user['username'],
                 "email": user['email'],
                 "facebook": {
-                    "adaccounts": [],
+                    # "adaccounts": [],
                     "ads": [],
-                    "recos": [],
                 },
                 "lang": 'en',
             }
@@ -77,6 +76,7 @@ class RecommendFacebook:
         return ads
 
     def recommend_ad(self, ad):
+        ad['recos'] = []
         data_7days = list(self.fbinsights.find(
             {
                 "ad_id": ad['ad_id'],
@@ -88,29 +88,29 @@ class RecommendFacebook:
         # for yesterday
         if len(data_7days) >= 1:
             data = data_7days[-1:]
-            self.ctr_check(data)
-            self.limit_check(data)
+            self.ctr_check(data, ad)
+            self.limit_check(data, ad)
             print("yesterday check done")
 
         # for at most last 7days
         if len(data_7days) >= 3:
             data = data_7days[-7:]
-            self.frequency_check(data)
+            self.frequency_check(data, ad)
             print("last 7days check done")
 
         # for at least last 3days
         if len(data_7days) >= 2:
             data = data_7days[-3:]
-            self.spend_check(data)
-            self.cpm_check(data)
-            self.cpc_check(data)
-            self.relevance_score_check(data)
+            self.spend_check(data, ad)
+            self.cpm_check(data, ad)
+            self.cpc_check(data, ad)
+            self.relevance_score_check(data, ad)
             print("last 3days check done")
 
         print("recommend_ad done: {}".format(datetime.datetime.now()))
-        return self.content['facebook']['recos']
+        return ad['recos']
 
-    def ctr_check(self, data):
+    def ctr_check(self, data, ad):
         score = 0
         if 'relevance_score' in data[0]:
             if 'score' in data[0]['relevance_score']:
@@ -127,7 +127,7 @@ class RecommendFacebook:
         if ctr < CONDITIONS['ctr'] and score <= 5:
             # 전체 클릭률 4% 이하이고, 관련성 점수가 5 이하일 때,
             reco = RECOS[self.content['lang']]['ctr_bad']
-            self.append_reco(reco)
+            self.append_reco(reco, ad)
 
         if bound_clicks_ctr:
             if bound_clicks_ctr < CONDITIONS['bound_clicks_ctr'] and score <= 5:
@@ -136,43 +136,43 @@ class RecommendFacebook:
                     # 캔버스 기능이 있으면,
                     reco = RECOS[self.content['lang']
                                  ]['bound_clicks_ctr_bad_with_canvas']
-                    self.append_reco(reco)
+                    self.append_reco(reco, ad)
                     return self.content
                 # 캔버스가 없으면,
                 reco = RECOS[self.content['lang']
                              ]['bound_clicks_ctr_bad_no_canvas']
-                self.append_reco(reco)
+                self.append_reco(reco, ad)
 
         print("ctr_check done: {}".format(datetime.datetime.now()))
         return self.content
 
-    def limit_check(self, data):
+    def limit_check(self, data, ad):
         cpm = data[0]['cpm']
         if cpm > CONDITIONS['cpm_limit']:
             reco = RECOS[self.content['lang']]['cpm_limit']
-            self.append_reco(reco)
+            self.append_reco(reco, ad)
 
         print("limit_check done: {}".format(datetime.datetime.now()))
         return self.content
 
-    def frequency_check(self, data):
+    def frequency_check(self, data, ad):
         frequencies = [_data['frequency'] for _data in data]
         avg_frequency = np.mean(frequencies)
 
         if avg_frequency > CONDITIONS['frequency_limit']:
             reco = RECOS[self.content['lang']]['frequency_limit']
-            self.append_reco(reco)
+            self.append_reco(reco, ad)
 
         print("frequency_check done: {}".format(datetime.datetime.now()))
         return self.content
 
-    def spend_check(self, data):
+    def spend_check(self, data, ad):
         spends = [_data['spend'] for _data in data]
 
         # 전날 대비 지출의 급격한 상승 체크
         if spends[-1] >= spends[-2] * CONDITIONS['spend_times_for_boom'] and spends[-1] >= CONDITIONS['spend_min_for_check']:
             reco = RECOS[self.content['lang']]['spend_boom']
-            self.append_reco(reco)
+            self.append_reco(reco, ad)
 
         # 지출 급격한 변화 체크에는 최소 3일간 데이터가 필요
         if len(spends) < CONDITIONS['spend_length']:
@@ -191,12 +191,12 @@ class RecommendFacebook:
                 reco = RECOS[self.content['lang']]['spend_up']
             else:
                 reco = RECOS[self.content['lang']]['spend_unstable']
-            self.append_reco(reco)
+            self.append_reco(reco, ad)
 
         print("spend_check done: {}".format(datetime.datetime.now()))
         return self.content
 
-    def cpm_check(self, data):
+    def cpm_check(self, data, ad):
         cpms = [_data['cpm'] for _data in data]
 
         if len(cpms) < CONDITIONS['cpm_length']:
@@ -209,18 +209,18 @@ class RecommendFacebook:
             # 하루 cpm이 최근 n일간 cpm 평균의 1.5배를 넘으면,
             if cpm > avg_cpm * CONDITIONS['cpm_avg_limit']:
                 reco = RECOS[self.content['lang']]['cpm_avg_limit']
-                self.append_reco(reco)
+                self.append_reco(reco, ad)
             # 가장 최근일의 cpm이 cpm 평균의 2.0배를 넘으면,
             elif cpms[-1] > avg_cpm * CONDITIONS['cpm_limit']:
                 reco = RECOS[self.content['lang']]['cpm_limit']
-                self.append_reco(reco)
+                self.append_reco(reco, ad)
             else:
                 pass
 
         print("cpm_check done: {}".format(datetime.datetime.now()))
         return self.content
 
-    def cpc_check(self, data):
+    def cpc_check(self, data, ad):
         cpcs = [_data['cost_per_inline_link_click'] for _data in data]
 
         if len(cpcs) < CONDITIONS['cpc_length']:
@@ -233,32 +233,32 @@ class RecommendFacebook:
         if not any(cpcs):
             reco = str(len(cpcs)) + \
                 RECOS[self.content['lang']]['no_link_click']
-            self.append_reco(reco)
+            self.append_reco(reco, ad)
         else:
             # 가장 최근일의 cpm이 cpm 평균의 2.0배를 넘으면,
             if cpcs[-1] > avg_cpc * CONDITIONS['cpc_limit']:
                 reco = RECOS[self.content['lang']]['cpc_limit']
-                self.append_reco(reco)
+                self.append_reco(reco, ad)
 
         print("cpc_check done: {}".format(datetime.datetime.now()))
         return self.content
 
-    def relevance_score_check(self, data):
+    def relevance_score_check(self, data, ad):
         if 'relevance_score' in data[-1]:
             if 'score' in data[-1]['relevance_score']:
                 relevance_score = data[-1]['relevance_score']['score']
                 if relevance_score in ['1', '2', '3']:
                     reco = RECOS[self.content['lang']]['relevance_score']
-                    self.append_reco(reco)
+                    self.append_reco(reco, ad)
 
         print("relevance_score_check done: {}".format(datetime.datetime.now()))
         return self.content
 
-    def append_reco(self, reco):
-        recos = self.content['facebook']['recos']
+    def append_reco(self, reco, ad):
+        recos = ad['recos']
         if not reco in recos:
             recos.append(reco)
-        return self.content
+        return ad
 
     def get_lang(self, adaccount):
         lang = 'en'
@@ -328,16 +328,19 @@ class RecommendNaver:
                 "customer_id": customer_id,
                 "username": user['user_id'],
                 "user_email": user_email,
-                "naver": {},
+                "naver": {
+                    "campaigns": [],
+                    "adgroups": [],
+                },
             }
             self.fetch_by_customer_id()
 
-            if 'campaigns' in self.content['naver']:
+            if self.content['naver']['campaigns']:
                 campaigns = self.content['naver']['campaigns']
                 campaigns = sorted(
                     campaigns, key=lambda campaign: campaign['name'])
 
-            if 'adgroups' in self.content['naver']:
+            if self.content['naver']['adgroups']:
                 adgroups = self.content['naver']['adgroups']
                 adgroups = sorted(
                     adgroups, key=lambda adgroup: adgroup['name'])

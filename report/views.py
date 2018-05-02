@@ -11,7 +11,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.header import Header
 
-from recommend.views import RecommendNaver
+from recommend.views import RecommendFacebook, RecommendNaver
 from .config import *
 from .forms import *
 
@@ -21,7 +21,42 @@ from .forms import *
 
 class ReportFacebook:
     def send_report(self):
-        print("send_report!!")
+        '''
+        '''
+        contents = RecommendFacebook().recommend_for_report()
+        for content in contents:
+            self.send_mail(content)
+
+        print("send_report done: {}".format(datetime.datetime.now()))
+        return contents
+
+    def send_mail(self, content):
+        '''
+        '''
+        if not content['facebook']['ads']:
+            return print("No ads data of Facebook: {}".format(datetime.datetime.now()))
+
+        smtp = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        smtp.login(MAIL['login_id'], MAIL['login_pw'])
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = 'Diana Facebook Report on {}'.format((datetime.datetime.now(
+        ) - datetime.timedelta(days=FETCH['from_days'])).strftime('%Y-%m-%d'))
+        msg['From'] = MAIL['from']
+        recipients = content['user_email']
+        msg['To'] = ','.join(recipients)
+        html = create_mail_facebook(content)
+
+        if not html:
+            print(content)
+            print("send_mail failed: {}".format(datetime.datetime.now()))
+            return content
+        
+        msg.attach(MIMEText(html, 'html'))
+        smtp.sendmail(msg['From'], recipients, msg.as_string())
+        smtp.quit()
+
+        print("send_mail done: {}".format(datetime.datetime.now()))
+        return content
 
 
 class ReportNaver:
@@ -38,10 +73,7 @@ class ReportNaver:
     def send_mail(self, content):
         '''
         '''
-        if not 'naver' in content:
-            return print("No data of Naver: {}".format(datetime.datetime.now()))
-
-        if not 'campaigns' in content['naver']:
+        if not content['naver']['campaigns']:
             return print("No campaigns data of Naver: {}".format(datetime.datetime.now()))
 
         smtp = smtplib.SMTP_SSL('smtp.gmail.com', 465)
@@ -52,7 +84,7 @@ class ReportNaver:
         msg['From'] = MAIL['from']
         recipients = content['user_email']
         msg['To'] = ','.join(recipients)
-        html = create_mail(content)
+        html = create_mail_naver(content)
 
         if not html:
             print(content)

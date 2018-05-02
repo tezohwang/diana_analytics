@@ -1,10 +1,10 @@
 import datetime
 
 
-def create_mail(content):
+def create_mail_facebook(content):
     '''
     '''
-    if not content['naver']:
+    if not content['facebook']['ads']:
         return False
     form = ''
     # html 시작
@@ -62,7 +62,153 @@ def create_mail(content):
                     <td style="background-color:#FFFFFF;color:#333333;padding:0px; text-align: center;position: relative; border-color: #FFFFFF">
                         <h1 style="padding-top: 60px">{} <br> Diana Report</h1>
                         <hr width="20%" color="#00c73c">
-                        <p style="padding-top: 20px"><b>Naver ID: {}</b></p>
+                        <p style="padding-top: 20px"><b>User: {}</b></p>
+                        <img alt="graph Image"
+                            src="https://s3.ap-northeast-2.amazonaws.com/wizpace/diana_notification/header_image2.png"
+                            width="100%" height="auto"/>
+                    </td>
+                </tr>
+            </table>
+            <br>
+        </div>
+        <div>
+            <img alt="facebook_logo" src="https://s3.ap-northeast-2.amazonaws.com/wizpace/diana_notification/facebook_logo.png" width="120" style="display: block;padding: 5px;"/>
+        </div>
+    '''.format((datetime.datetime.now() - datetime.timedelta(days=1)).strftime('%Y-%m-%d'), content['username'])
+
+    ads = content['facebook']['ads']
+    for ad in ads:
+        # body > content 시작
+        form += '''
+        <div>
+            <table style="width:100%; border:1px solid rgba(0,0,0,0.1);border-collapse:collapse;font-family:Helvetica;font-size:12px;font-style:normal;font-variant-caps:normal;font-weight:normal;letter-spacing:normal;text-align:start;text-indent:0px;text-transform:none;white-space:normal;word-spacing:0px;width:759px">
+                <tbody>
+        '''
+        # body > content > '캠페인 영역 라인 표시'
+        form += '''
+        <tr>
+            <th colspan="10"
+                style="border:1px solid #52A4FC;border-collapse:collapse;background-color:#52A4FC;color: #FFFFFF;padding: 5px;font-size: 13px">
+                {}
+            </th>
+        </tr>
+        <tr style="color:#00c73c;">
+        '''.format(ad['name'])
+        form += '''
+        <tr>
+            <th>지표</th>
+            <th>값</th>
+        </tr>
+        '''
+        for key in ad.keys():
+            if key != 'recos':
+                form += '<tr>'
+                # 인사이트 데이터
+                form += '<td>{}</td>'.format(key)
+                form += '<td>{}</td>'.format(ad[key])
+                form += '</tr>'
+
+        form += '</table>'
+
+        # 추천 사항이 있으면 작성
+        if ad['recos']:
+            form += '''
+                <table style="width:100%; border:1px solid rgba(0,0,0,0.1);border-collapse:collapse;font-family:Helvetica;font-size:12px;font-style:normal;font-variant-caps:normal;font-weight:normal;letter-spacing:normal;text-align:start;text-indent:0px;text-transform:none;white-space:normal;word-spacing:0px;width:759px">
+                <tbody>
+                <tr>
+                    <th colspan="10"
+                        style="border:1px solid #52A4FC;border-collapse:collapse;background-color:#52A4FC;color: #FFFFFF;padding: 5px;font-size: 13px">
+                        추천 사항
+                    </th>
+                </tr>
+            '''
+            for reco in ad['recos']:
+                # tr
+                form += '<tr>'
+                # reco 데이터
+                form += '<td>{}</td>'.format(reco)
+                form += '</tr>'
+            form += '</table>'
+
+    form += '''
+        <table style="width:100%; border:1px solid rgba(0,0,0,0.1);border-collapse:collapse;font-family:Helvetica;font-size:12px;font-style:normal;font-variant-caps:normal;font-weight:normal;letter-spacing:normal;text-align:start;text-indent:0px;text-transform:none;white-space:normal;word-spacing:0px;width:759px">
+            <tr>
+                <td>
+                <br>
+                <p style="font-size:15px;line-height:20px;font-family: 'AppleSDGothicNeo-Light', Helvetica, Arial, serif; text-align:center;">기간별 광고 데이터 및 자세한 분석은 아래 홈페이지에서 확인 가능합니다</p>
+                <p style="font-size:15px;line-height:20px;font-family: 'AppleSDGothicNeo-Light', Helvetica, Arial, serif; text-align:center;"><a href="http://www.diana.business">www.diana.business</a></p>
+                <p style="font-size:15px;line-height:20px;font-family: 'AppleSDGothicNeo-Light', Helvetica, Arial, serif; text-align:center;">2017 @ COPYRIGHT - DIANA</p>
+                <img alt="diana logo img" src="https://s3.ap-northeast-2.amazonaws.com/wizpace/diana_notification/diana_logo_gray.png" width="104px" height="auto" style="padding: 10px" />
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    '''
+    return form
+
+def create_mail_naver(content):
+    '''
+    '''
+    if not content['naver']['campaigns']:
+        return False
+    form = ''
+    # html 시작
+    form += '<html>'
+    # head 파트
+    form += '''
+    <head>
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <style>
+            td, th {
+                border: 1px solid rgba(0, 0, 0, 0.1);
+                border-collapse: collapse;
+                text-align: center;
+                padding: 5px;
+            }
+            tr:nth-child(even) {background-color: #f1fbf2;}
+            @media(max-width: 600px) {
+
+                table {
+                    width: 90%;
+                    max-width: 580px;
+                }
+
+                h1 {
+                    font-size: 40px;
+                    line-height: 40px;
+                }
+
+                p {
+                    font-size: 18px;
+                }
+
+                td {
+                    font-size: 10px;
+                    line-height: 20px;
+                }
+            }
+        </style>
+    </head>
+    '''
+    # body 파트 상단
+    form += '''
+    <body>
+        <div>
+            <table style="width:100%; border:1px solid rgba(0,0,0,0.1);border-collapse:collapse;font-family:Helvetica;text-indent:0px;text-transform:none;font-size:20px;white-space:normal;word-spacing:0px;width:759px">
+                <tr>
+                    <td style="background-color:#52A4FC;color:#000000;padding:20px;">
+                        <img alt="logo"
+                            src="https://s3.ap-northeast-2.amazonaws.com/wizpace/diana_notification/diana_logo_white.png"
+                            width="120" style="display: block;"/>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="background-color:#FFFFFF;color:#333333;padding:0px; text-align: center;position: relative; border-color: #FFFFFF">
+                        <h1 style="padding-top: 60px">{} <br> Diana Report</h1>
+                        <hr width="20%" color="#00c73c">
+                        <p style="padding-top: 20px"><b>User: {}</b></p>
                         <img alt="graph Image"
                             src="https://s3.ap-northeast-2.amazonaws.com/wizpace/diana_notification/header_image2.png"
                             width="100%" height="auto"/>
@@ -76,8 +222,6 @@ def create_mail(content):
         </div>
     '''.format((datetime.datetime.now() - datetime.timedelta(days=1)).strftime('%Y-%m-%d'), content['username'])
 
-    if not 'campaigns' in content['naver']:
-        return False
     if content['naver']['campaigns']:
         # body > content 시작
         form += '''
