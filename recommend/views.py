@@ -301,6 +301,7 @@ class RecommendNaver:
         self.db = connect_db('diana')
         self.nvkeywords = self.db['nvkeywords']
         self.nvaccounts = self.db['nvaccounts']
+        self.nvstats = self.db['nvstats']
         self.contents = []
         self.content = {}
 
