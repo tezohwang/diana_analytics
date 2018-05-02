@@ -115,13 +115,13 @@ class RecommendFacebook:
         if 'relevance_score' in data[0]:
             if 'score' in data[0]['relevance_score']:
                 score = int(data[0]['relevance_score']['score'])
-        ctr = round(float(data[0]['ctr']), 2)
+        ctr = round(data[0]['ctr'], 2)
         if 'inline_link_click_ctr' in data[0]:
             bound_clicks_ctr = round(
-                float(data[0]['inline_link_click_ctr']), 2)
+                data[0]['inline_link_click_ctr'], 2)
         if 'outbound_clicks_ctr' in data[0]:
             bound_clicks_ctr = round(
-                float(data[0]['outbound_clicks_ctr'][0]['value']), 2)
+                data[0]['outbound_clicks_ctr'][0]['value'], 2)
 
         if ctr < CONDITIONS['ctr'] and score <= 5:
             # 전체 클릭률 4% 이하이고, 관련성 점수가 5 이하일 때,
@@ -145,7 +145,7 @@ class RecommendFacebook:
         return self.content
 
     def limit_check(self, data):
-        cpm = float(data[0]['cpm'])
+        cpm = data[0]['cpm']
         if cpm > CONDITIONS['cpm_limit']:
             reco = RECOS[self.content['lang']]['cpm_limit']
             self.append_reco(reco)
@@ -154,7 +154,14 @@ class RecommendFacebook:
         return self.content
 
     def frequency_check(self, data):
-        pass
+        frequency = data[-1]['frequency']
+
+        if frequency > CONDITIONS['frequency_limit']:
+            reco = RECOS[self.content['lang']]['frequency_limit']
+            self.append_reco(reco)
+
+        print("frequency_check done: {}".format(datetime.datetime.now()))
+        return self.content
 
     def spend_check(self, data):
         pass
