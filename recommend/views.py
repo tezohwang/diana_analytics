@@ -108,7 +108,7 @@ class RecommendFacebook:
             print("last 3days check done")
 
         print("recommend_ad done: {}".format(datetime.datetime.now()))
-        return self.content
+        return self.content['facebook']['recos']
 
     def ctr_check(self, data):
         score = 0
@@ -116,6 +116,7 @@ class RecommendFacebook:
             if 'score' in data[0]['relevance_score']:
                 score = int(data[0]['relevance_score']['score'])
         ctr = round(data[0]['ctr'], 2)
+        bound_clicks_ctr = 0
         if 'inline_link_click_ctr' in data[0]:
             bound_clicks_ctr = round(
                 data[0]['inline_link_click_ctr'], 2)
@@ -127,7 +128,8 @@ class RecommendFacebook:
             # 전체 클릭률 4% 이하이고, 관련성 점수가 5 이하일 때,
             reco = RECOS[self.content['lang']]['ctr_bad']
             self.append_reco(reco)
-        else:
+
+        if bound_clicks_ctr:
             if bound_clicks_ctr < CONDITIONS['bound_clicks_ctr'] and score <= 5:
                 # 바운드 클릭률 2% 이하이고, 관련성 점수가 5 이하이면,
                 if data[0]['canvas_avg_view_percent']:
@@ -258,8 +260,36 @@ class RecommendFacebook:
             recos.append(reco)
         return self.content
 
+    def get_lang(self, adaccount):
+        lang = 'en'
+        if adaccount['currency'] == 'KRW':
+            lang = 'kr'
+        return lang
+
     def update_recommendations(self):
-        pass
+        '''
+        update recommendations of every keyword with data of 7days and yesterday
+        '''
+        self.content = {
+            "facebook": {
+                "recos": [],
+            },
+            "lang": 'en',
+        }
+
+        # 지난 1주일 동안 0원 이상 사용했던 ads 리스트
+        ads = self.fbads.find({"last_week.spend": {"$gt": 0}})
+        for ad in ads:
+            adaccount = self.fbadaccounts.find_one(
+                {"account_id": ad['account_id']})
+            self.content['lang'] = self.get_lang(adaccount)
+            recos = self.recommend_ad(ad)
+            self.fbads.update_one(
+                {"ad_id": ad['ad_id']},
+                {"$set": {"recommendation": recos}}
+            )
+        print("update_recommendations done: {}".format(datetime.datetime.now()))
+        return recos
 
 
 class RecommendNaver:
@@ -271,6 +301,8 @@ class RecommendNaver:
         self.db = connect_db('diana')
         self.nvkeywords = self.db['nvkeywords']
         self.nvaccounts = self.db['nvaccounts']
+        self.contents = []
+        self.content = {}
 
     def recommend_for_report(self):
         autobid_db = connect_db('autobidding')
@@ -288,31 +320,34 @@ class RecommendNaver:
         # 		{"user_id": user['user_id']}
         # 	)['email']
 
-        contents = []
         for user in users:
             customer_id = str(user['customer_id'])
             user_email = ['tony.hwang@wizpace.com']
-            content = {
+            self.content = {
                 "customer_id": customer_id,
                 "username": user['user_id'],
                 "user_email": user_email,
                 "naver": {},
             }
-            self.fetch_by_customer_id(content)
+            self.fetch_by_customer_id()
 
-            if 'campaigns' in content['naver']:
-                content['naver']['campaigns'] = sorted(
-                    content['naver']['campaigns'], key=lambda campaign: campaign['name'])
-            if 'adgroups' in content['naver']:
-                content['naver']['adgroups'] = sorted(
-                    content['naver']['adgroups'], key=lambda adgroup: adgroup['name'])
-            self.recommend_entity(content)
-            contents.append(content)
+            if 'campaigns' in self.content['naver']:
+                campaigns = self.content['naver']['campaigns']
+                campaigns = sorted(
+                    campaigns, key=lambda campaign: campaign['name'])
 
+            if 'adgroups' in self.content['naver']:
+                adgroups = self.content['naver']['adgroups']
+                adgroups = sorted(
+                    adgroups, key=lambda adgroup: adgroup['name'])
+            self.recommend_entity()
+            self.contents.append(self.content)
+
+        print(self.contents)
         print("recommend_for_report done: {}".format(datetime.datetime.now()))
-        return contents
+        return self.contents
 
-    def fetch_by_customer_id(self, content):
+    def fetch_by_customer_id(self):
         '''
         fetch campaign & adgroup data from DB by customer_id
         '''
@@ -320,48 +355,48 @@ class RecommendNaver:
         # 오늘 status가 ELIGIBLE(ON)인 캠페인들
         campaigns_on_today = list(self.db['nvcampaigns'].find(
             {
-                "customer_id": content['customer_id'],
+                "customer_id": self.content['customer_id'],
                 "status": "ELIGIBLE",
             }
         ))
         if campaigns_on_today:
-            content['naver']['campaigns'] = campaigns_on_today
+            self.content['naver']['campaigns'] = campaigns_on_today
 
         # 오늘 status가 ELIGIBLE(ON), 어제 stat이 있는 광고그룹들
         adgroups_on_today = list(self.db['nvadgroups'].find(
             {
-                "customer_id": content['customer_id'],
+                "customer_id": self.content['customer_id'],
                 "status": "ELIGIBLE",
                 "status_reason": "ELIGIBLE",
                 "yesterday": {'$ne': {}}
             }
         ))
         if adgroups_on_today:
-            content['naver']['adgroups'] = adgroups_on_today
+            self.content['naver']['adgroups'] = adgroups_on_today
 
         print("fetch_naver_data done: {}".format(datetime.datetime.now()))
-        return content
+        return self.content
 
-    def recommend_entity(self, content):
+    def recommend_entity(self):
         '''
         '''
-        content['naver']['recos'] = []
+        self.content['naver']['recos'] = []
 
         # 현재까지 1000원 이상 사용한 키워드 리스트
         keyword_list = list(self.nvkeywords.find(
             {
-                'customer_id': content['customer_id'],
-                'last_month.spend': {'$gte': THRESHOLD['spend'][content['username']]},
+                'customer_id': self.content['customer_id'],
+                'last_month.spend': {'$gte': THRESHOLD['spend'][self.content['username']]},
             },
         ))
 
         for keyword in keyword_list:
-            self.recommend_keyword(content, keyword)
+            self.recommend_keyword(keyword)
 
         print("recommend_entity done: {}".format(datetime.datetime.now()))
-        return content
+        return self.content
 
-    def recommend_keyword(self, content, keyword):
+    def recommend_keyword(self, keyword):
         '''
         '''
         # 7일전부터 어제까지의 데이터
@@ -377,8 +412,8 @@ class RecommendNaver:
                          for data in data_7days if 'ccnt' in data])
         sum_spends = sum([data['spend']
                           for data in data_7days if 'spend' in data])
-        if sum_ccnts == 0 and sum_spends >= THRESHOLD['no_ccnt_spend'][content['username']]:
-            content['naver']['recos'].append(
+        if sum_ccnts == 0 and sum_spends >= THRESHOLD['no_ccnt_spend'][self.content['username']]:
+            self.content['naver']['recos'].append(
                 {
                     'keyword_id': keyword['keyword_id'],
                     'name': keyword['name'],
@@ -395,7 +430,7 @@ class RecommendNaver:
             max_index = ctr_by_cpc.index(max(ctr_by_cpc))
             best_rank = data_7days[max_index]['average_rank']
             if best_rank:
-                content['naver']['recos'].append(
+                self.content['naver']['recos'].append(
                     {
                         'keyword_id': keyword['keyword_id'],
                         'name': keyword['name'],
@@ -412,8 +447,8 @@ class RecommendNaver:
             avg_cpc_for_7days = np.mean(cpc_for_7days)
 
             if all([avg_cpc_for_7days, 'cpc' in data_7days[-1]]):
-                if data_7days[-1]['cpc'] > avg_cpc_for_7days * THRESHOLD['avg_cpc_times'][content['username']]:
-                    content['naver']['recos'].append(
+                if data_7days[-1]['cpc'] > avg_cpc_for_7days * THRESHOLD['avg_cpc_times'][self.content['username']]:
+                    self.content['naver']['recos'].append(
                         {
                             'keyword_id': keyword['keyword_id'],
                             'name': keyword['name'],
@@ -430,8 +465,8 @@ class RecommendNaver:
             avg_cpm_for_7days = np.mean(cpm_for_7days)
 
             if all([avg_cpm_for_7days, 'spend' in data_7days[-1], 'impressions' in data_7days[-1]]):
-                if data_7days[-1]['spend']/data_7days[-1]['impressions'] > avg_cpm_for_7days * THRESHOLD['avg_cpm_times'][content['username']]:
-                    content['naver']['recos'].append(
+                if data_7days[-1]['spend']/data_7days[-1]['impressions'] > avg_cpm_for_7days * THRESHOLD['avg_cpm_times'][self.content['username']]:
+                    self.content['naver']['recos'].append(
                         {
                             'keyword_id': keyword['keyword_id'],
                             'name': keyword['name'],
@@ -448,8 +483,8 @@ class RecommendNaver:
             avg_imp_for_7days = np.mean(imp_for_7days)
 
             if all([avg_imp_for_7days, 'impressions' in data_7days[-1]]):
-                if data_7days[-1]['impressions'] > avg_imp_for_7days * THRESHOLD['avg_imp_times'][content['username']]:
-                    content['naver']['recos'].append(
+                if data_7days[-1]['impressions'] > avg_imp_for_7days * THRESHOLD['avg_imp_times'][self.content['username']]:
+                    self.content['naver']['recos'].append(
                         {
                             'keyword_id': keyword['keyword_id'],
                             'name': keyword['name'],
@@ -458,7 +493,7 @@ class RecommendNaver:
                     )
 
         print("recommend_keyword done: {}".format(datetime.datetime.now()))
-        return content
+        return self.content
 
     def update_recommendations(self):
         '''
