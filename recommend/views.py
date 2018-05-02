@@ -44,7 +44,6 @@ class RecommendFacebook:
             # if long access token will be expired within 7 days
 
             adaccounts = self.get_adaccounts()
-            # print(adaccounts)
 
             for adaccount in adaccounts:
                 ads = self.get_ads(adaccount)
@@ -146,7 +145,13 @@ class RecommendFacebook:
         return self.content
 
     def limit_check(self, data):
-        pass
+        cpm = float(data[0]['cpm'])
+        if cpm > CONDITIONS['cpm_limit']:
+            reco = RECOS[self.content['lang']]['cpm_limit']
+            self.append_reco(reco)
+
+        print("limit_check done: {}".format(datetime.datetime.now()))
+        return self.content
 
     def frequency_check(self, data):
         pass
