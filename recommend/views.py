@@ -9,8 +9,6 @@ import numpy as np
 
 
 # Controller Views
-
-
 class RecommendFacebook:
     '''
     generate recommendations for Facebook ads

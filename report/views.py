@@ -1,10 +1,13 @@
 from django.shortcuts import render
+from django.http import HttpResponse
+from django.views.decorators.csrf import csrf_exempt
 
 import os
 import sys
 # 현재 모듈의 절대 경로를 알아내어, 상위 폴더 절대 경로를 참조 path에 추가하는 방식입니다.
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
+import json
 import datetime
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -16,9 +19,41 @@ from .config import *
 from .forms import *
 
 
+# Route Views
+@csrf_exempt
+def send_mail(request):
+    if request.method == "POST":
+        req = json.loads(request.body.decode('utf-8'))
+        email = req['email']
+        service = req['service']
+
+        smtp = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        smtp.login(MAIL['login_id'], MAIL['login_pw'])
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = 'Diana sign up Request!'
+        msg['From'] = MAIL['from']
+        recipients = ['support@wizpace.com']
+        msg['To'] = ','.join(recipients)
+
+        html = '''
+        <p>Received Diana sign up request:</p>
+        <p>From: {}</p>
+        <p>Service: {}</p>
+        <p>Time: {}</p>
+        '''.format(email, service, datetime.datetime.now())
+
+        msg.attach(MIMEText(html, 'html'))
+        smtp.sendmail(msg['From'], recipients, msg.as_string())
+        smtp.quit()
+
+        print(html)
+        print("send_mail done: {}".format(datetime.datetime.now()))
+
+        return HttpResponse(json.dumps("success").encode('utf-8'))
+    return HttpResponse(json.dumps("error").encode('utf-8'))
+
+
 # Controller Views
-
-
 class ReportFacebook:
     def send_report(self):
         '''
@@ -50,7 +85,7 @@ class ReportFacebook:
             print(content)
             print("send_mail failed: {}".format(datetime.datetime.now()))
             return content
-        
+
         msg.attach(MIMEText(html, 'html'))
         smtp.sendmail(msg['From'], recipients, msg.as_string())
         smtp.quit()
