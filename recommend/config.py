@@ -49,7 +49,7 @@ CONDITIONS = {
     'spend_min_for_check': 10000,
     'cpm_length': 3,
     'cpm_avg_limit': 1.5,
-    'cpm_limit': 10000,
+    'cpm_limit': 2.0,
     'cpc_length': 3,
     'cpc_limit': 400,
     'ctr': 4.00,

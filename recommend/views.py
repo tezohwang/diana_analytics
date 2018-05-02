@@ -195,7 +195,28 @@ class RecommendFacebook:
         return self.content
 
     def cpm_check(self, data):
-        pass
+        cpms = [_data['cpm'] for _data in data]
+
+        if len(cpms) < CONDITIONS['cpm_length']:
+            print("not enough cpms data: {}".format(len(cpms)))
+            return self.content
+
+        avg_cpm = np.mean(cpms)
+
+        for cpm in cpms:
+            # 하루 cpm이 최근 n일간 cpm 평균의 1.5배를 넘으면,
+            if cpm > avg_cpm * CONDITIONS['cpm_avg_limit']:
+                reco = RECOS[self.content['lang']]['cpm_avg_limit']
+                self.append_reco(reco)
+            # 가장 최근일의 cpm이 cpm 평균의 2.0배를 넘으면,
+            elif cpms[-1] > avg_cpm * CONDITIONS['cpm_limit']:
+                reco = RECOS[self.content['lang']]['cpm_limit']
+                self.append_reco(reco)
+            else:
+                pass
+
+        print("cpm_check done: {}".format(datetime.datetime.now()))
+        return self.content
 
     def cpc_check(self, data):
         pass
