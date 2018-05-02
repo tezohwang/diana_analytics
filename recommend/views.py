@@ -242,7 +242,15 @@ class RecommendFacebook:
         return self.content
 
     def relevance_score_check(self, data):
-        pass
+        if 'relevance_score' in data[-1]:
+            if 'score' in data[-1]['relevance_score']:
+                relevance_score = data[-1]['relevance_score']['score']
+                if relevance_score in ['1', '2', '3']:
+                    reco = RECOS[self.content['lang']]['relevance_score']
+                    self.append_reco(reco)
+
+        print("relevance_score_check done: {}".format(datetime.datetime.now()))
+        return self.content
 
     def append_reco(self, reco):
         recos = self.content['facebook']['recos']
