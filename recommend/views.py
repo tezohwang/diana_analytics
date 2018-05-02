@@ -219,7 +219,27 @@ class RecommendFacebook:
         return self.content
 
     def cpc_check(self, data):
-        pass
+        cpcs = [_data['cost_per_inline_link_click'] for _data in data]
+
+        if len(cpcs) < CONDITIONS['cpc_length']:
+            print("not enough cpcs data: {}".format(len(cpcs)))
+            return self.content
+
+        avg_cpc = np.mean(cpcs)
+
+        # 지출은 있으나, 모든 cpc가 0일 경우 = 링크 클릭이 발생하지 않을 경우,
+        if not any(cpcs):
+            reco = str(len(cpcs)) + \
+                RECOS[self.content['lang']]['no_link_click']
+            self.append_reco(reco)
+        else:
+            # 가장 최근일의 cpm이 cpm 평균의 2.0배를 넘으면,
+            if cpcs[-1] > avg_cpc * CONDITIONS['cpc_limit']:
+                reco = RECOS[self.content['lang']]['cpc_limit']
+                self.append_reco(reco)
+
+        print("cpc_check done: {}".format(datetime.datetime.now()))
+        return self.content
 
     def relevance_score_check(self, data):
         pass

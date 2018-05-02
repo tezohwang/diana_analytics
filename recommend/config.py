@@ -52,7 +52,7 @@ CONDITIONS = {
     'cpm_limit': 2.0,
     'cpc_length': 3,
     'cpc_limit': 400,
-    'ctr': 4.00,
+    'ctr': 2.0,
     'bound_clicks_ctr': 2.00,
 }
 
