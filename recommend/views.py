@@ -5,7 +5,7 @@ from .config import *
 
 import datetime
 import json
-import numpy
+import numpy as np
 
 
 # Controller Views
@@ -94,12 +94,12 @@ class RecommendFacebook:
 
         # for at most last 7days
         if len(data_7days) >= 3:
-            data = data_7days[-3:]
+            data = data_7days[-7:]
             self.frequency_check(data)
             print("last 7days check done")
 
         # for at least last 3days
-        if len(data_7days) >= 3:
+        if len(data_7days) >= 2:
             data = data_7days[-3:]
             self.spend_check(data)
             self.cpm_check(data)
@@ -154,9 +154,10 @@ class RecommendFacebook:
         return self.content
 
     def frequency_check(self, data):
-        frequency = data[-1]['frequency']
+        frequencies = [_data['frequency'] for _data in data]
+        avg_frequency = np.mean(frequencies)
 
-        if frequency > CONDITIONS['frequency_limit']:
+        if avg_frequency > CONDITIONS['frequency_limit']:
             reco = RECOS[self.content['lang']]['frequency_limit']
             self.append_reco(reco)
 
@@ -164,7 +165,34 @@ class RecommendFacebook:
         return self.content
 
     def spend_check(self, data):
-        pass
+        spends = [_data['spend'] for _data in data]
+
+        # 전날 대비 지출의 급격한 상승 체크
+        if spends[-1] >= spends[-2] * CONDITIONS['spend_times_for_boom'] and spends[-1] >= CONDITIONS['spend_min_for_check']:
+            reco = RECOS[self.content['lang']]['spend_boom']
+            self.append_reco(reco)
+
+        # 지출 급격한 변화 체크에는 최소 3일간 데이터가 필요
+        if len(spends) < CONDITIONS['spend_length']:
+            print("not enough spends data: {}".format(len(spends)))
+            return self.content
+
+        avg_spend = np.mean(spends)
+        std_spend = np.std(spends)
+
+        # 평균과 지출의 변화 정도를 비교
+        if std_spend > avg_spend:
+            # 지출의 변동이 심하면, (평균 이상이면)
+            if spends[-3] > spends[-2] and spends[-2] > spends[-1]:
+                reco = RECOS[self.content['lang']]['spend_down']
+            elif spends[-3] < spends[-2] and spends[-2] < spends[-1]:
+                reco = RECOS[self.content['lang']]['spend_up']
+            else:
+                reco = RECOS[self.content['lang']]['spend_unstable']
+            self.append_reco(reco)
+
+        print("spend_check done: {}".format(datetime.datetime.now()))
+        return self.content
 
     def cpm_check(self, data):
         pass
@@ -332,7 +360,7 @@ class RecommendNaver:
                 if 'cpc' in data:
                     if data['cpc']:
                         cpc_for_7days.append(data['cpc'])
-            avg_cpc_for_7days = numpy.mean(cpc_for_7days)
+            avg_cpc_for_7days = np.mean(cpc_for_7days)
 
             if all([avg_cpc_for_7days, 'cpc' in data_7days[-1]]):
                 if data_7days[-1]['cpc'] > avg_cpc_for_7days * THRESHOLD['avg_cpc_times'][content['username']]:
@@ -350,7 +378,7 @@ class RecommendNaver:
                 if 'impressions' in data and 'spend' in data:
                     if data['impressions'] * data['spend']:
                         cpm_for_7days.append(data['spend']/data['impressions'])
-            avg_cpm_for_7days = numpy.mean(cpm_for_7days)
+            avg_cpm_for_7days = np.mean(cpm_for_7days)
 
             if all([avg_cpm_for_7days, 'spend' in data_7days[-1], 'impressions' in data_7days[-1]]):
                 if data_7days[-1]['spend']/data_7days[-1]['impressions'] > avg_cpm_for_7days * THRESHOLD['avg_cpm_times'][content['username']]:
@@ -368,7 +396,7 @@ class RecommendNaver:
                 if 'impressions' in data:
                     if data['impressions']:
                         imp_for_7days.append(data['impressions'])
-            avg_imp_for_7days = numpy.mean(imp_for_7days)
+            avg_imp_for_7days = np.mean(imp_for_7days)
 
             if all([avg_imp_for_7days, 'impressions' in data_7days[-1]]):
                 if data_7days[-1]['impressions'] > avg_imp_for_7days * THRESHOLD['avg_imp_times'][content['username']]:
