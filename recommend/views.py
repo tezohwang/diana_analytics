@@ -1,7 +1,7 @@
 from django.shortcuts import render
 
 from .database import connect_db
-from .config import THRESHOLD
+from .config import *
 
 import datetime
 import json
@@ -21,12 +21,13 @@ class RecommendFacebook:
         self.fbadaccounts = self.db['fbadaccounts']
         self.fbads = self.db['fbads']
         self.fbinsights = self.db['fbinsights']
+        self.contents = []
+        self.content = {}
 
     def recommend_for_report(self):
-        contents = []
         users = list(self.db['userinfo'].find())
         for user in users:
-            content = {
+            self.content = {
                 "user_id": user['user_id'],
                 "network_id": user['network_id'],
                 "username": user['username'],
@@ -42,41 +43,41 @@ class RecommendFacebook:
             # long access token expiry check
             # if long access token will be expired within 7 days
 
-            adaccounts = self.get_adaccounts(content)
+            adaccounts = self.get_adaccounts()
             # print(adaccounts)
 
             for adaccount in adaccounts:
-                ads = self.get_ads(content, adaccount)
+                ads = self.get_ads(adaccount)
 
                 if ads:
                     for ad in ads:
-                        self.recommend_ad(content, ad)
-            
-            contents.append(content)
-        # print(contents)
+                        self.recommend_ad(ad)
 
+            self.contents.append(self.content)
+            # print(self.content)
+
+        print(self.contents)
         print("recommend_for_report done: {}".format(datetime.datetime.now()))
-        return contents
+        return self.contents
 
-
-    def get_adaccounts(self, content):
+    def get_adaccounts(self):
         adaccounts = list(self.fbadaccounts.find(
-            {"network_id": content['network_id']}
+            {"network_id": self.content['network_id']}
         ))
         # content['facebook']['adaccounts'] += adaccounts
         return adaccounts
 
-    def get_ads(self, content, adaccount):
+    def get_ads(self, adaccount):
         ads = list(self.fbads.find(
             {
                 "account_id": adaccount['account_id'],
                 "yesterday.spend": {"$gt": 0},
             }
         ))
-        content['facebook']['ads'] += ads
+        self.content['facebook']['ads'] += ads
         return ads
 
-    def recommend_ad(self, content, ad):
+    def recommend_ad(self, ad):
         data_7days = list(self.fbinsights.find(
             {
                 "ad_id": ad['ad_id'],
@@ -87,48 +88,86 @@ class RecommendFacebook:
 
         # for yesterday
         if len(data_7days) >= 1:
-            data = data_7days[-1]
-            self.ctr_check()
-            self.limit_check()
+            data = data_7days[-1:]
+            self.ctr_check(data)
+            self.limit_check(data)
             print("yesterday check done")
 
         # for at most last 7days
         if len(data_7days) >= 3:
-            self.frequency_check()
+            data = data_7days[-3:]
+            self.frequency_check(data)
             print("last 7days check done")
 
         # for at least last 3days
         if len(data_7days) >= 3:
-            self.spend_check()
-            self.cpm_check()
-            self.cpc_check()
-            self.relevance_score_check()
+            data = data_7days[-3:]
+            self.spend_check(data)
+            self.cpm_check(data)
+            self.cpc_check(data)
+            self.relevance_score_check(data)
             print("last 3days check done")
 
         print("recommend_ad done: {}".format(datetime.datetime.now()))
-        return content
+        return self.content
 
-    def ctr_check(self):
+    def ctr_check(self, data):
+        score = 0
+        if 'relevance_score' in data[0]:
+            if 'score' in data[0]['relevance_score']:
+                score = int(data[0]['relevance_score']['score'])
+        ctr = round(float(data[0]['ctr']), 2)
+        if 'inline_link_click_ctr' in data[0]:
+            bound_clicks_ctr = round(
+                float(data[0]['inline_link_click_ctr']), 2)
+        if 'outbound_clicks_ctr' in data[0]:
+            bound_clicks_ctr = round(
+                float(data[0]['outbound_clicks_ctr'][0]['value']), 2)
+
+        if ctr < CONDITIONS['ctr'] and score <= 5:
+            # 전체 클릭률 4% 이하이고, 관련성 점수가 5 이하일 때,
+            reco = RECOS[self.content['lang']]['ctr_bad']
+            self.append_reco(reco)
+        else:
+            if bound_clicks_ctr < CONDITIONS['bound_clicks_ctr'] and score <= 5:
+                # 바운드 클릭률 2% 이하이고, 관련성 점수가 5 이하이면,
+                if data[0]['canvas_avg_view_percent']:
+                    # 캔버스 기능이 있으면,
+                    reco = RECOS[self.content['lang']
+                                 ]['bound_clicks_ctr_bad_with_canvas']
+                    self.append_reco(reco)
+                    return self.content
+                # 캔버스가 없으면,
+                reco = RECOS[self.content['lang']
+                             ]['bound_clicks_ctr_bad_no_canvas']
+                self.append_reco(reco)
+
+        print("ctr_check done: {}".format(datetime.datetime.now()))
+        return self.content
+
+    def limit_check(self, data):
         pass
 
-    def limit_check(self):
+    def frequency_check(self, data):
         pass
 
-    def frequency_check(self):
+    def spend_check(self, data):
         pass
 
-    def spend_check(self):
+    def cpm_check(self, data):
         pass
 
-    def cpm_check(self):
+    def cpc_check(self, data):
         pass
 
-    def cpc_check(self):
+    def relevance_score_check(self, data):
         pass
 
-    def relevance_score_check(self):
-        pass
-
+    def append_reco(self, reco):
+        recos = self.content['facebook']['recos']
+        if not reco in recos:
+            recos.append(reco)
+        return self.content
 
     def update_recommendations(self):
         pass
