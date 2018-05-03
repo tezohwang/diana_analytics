@@ -28,7 +28,7 @@ THRESHOLD = {
         "baronmotors": 500000,
         "uiseong": 3000,
         "wizpace": 1500,
-        "ponitto": 500000,
+        "ponitto": 50000,
     },
     'no_ccnt_spend': {
         "default": 10000,
@@ -36,7 +36,7 @@ THRESHOLD = {
         "baronmotors": 50000,
         "uiseong": 1000,
         "wizpace": 500,
-        "ponitto": 50000,
+        "ponitto": 5000,
     },
     'avg_cpc_times': {
         "default": 3.0,
