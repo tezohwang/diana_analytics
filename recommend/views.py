@@ -31,7 +31,6 @@ class RecommendFacebook:
                 "username": user['username'],
                 "email": user['email'],
                 "facebook": {
-                    # "adaccounts": [],
                     "ads": [],
                 },
                 "lang": 'en',
@@ -60,7 +59,6 @@ class RecommendFacebook:
         adaccounts = list(self.fbadaccounts.find(
             {"network_id": self.content['network_id']}
         ))
-        # content['facebook']['adaccounts'] += adaccounts
         return adaccounts
 
     def get_ads(self, adaccount):
@@ -331,6 +329,8 @@ class RecommendNaver:
                     "adgroups": [],
                 },
             }
+            if not self.content['username'] in CLIENTS['naver']:
+                self.content['username'] = "default"
             self.fetch_by_customer_id()
 
             if self.content['naver']['campaigns']:
@@ -509,6 +509,8 @@ class RecommendNaver:
             recos = []
             username = self.nvaccounts.find_one({"client_customer_id": keyword['customer_id']})[
                 'client_login_id']
+            if not username in CLIENTS['naver']:
+                username = "default"
             last_week = keyword['last_week']
             yesterday = keyword['yesterday']
 

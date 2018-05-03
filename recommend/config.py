@@ -9,8 +9,21 @@ DATABASE = {
     }
 }
 
+CLIENTS = {
+    "facebook": [],
+    "naver": [
+        "bestgo",
+        "baronmotors",
+        "uiseong",
+        "wizpace",
+        "ponitto",
+    ],
+    "adwords": [],
+}
+
 THRESHOLD = {
     "spend": {
+        "default": 100000,
         "bestgo": 500000,
         "baronmotors": 500000,
         "uiseong": 3000,
@@ -18,6 +31,7 @@ THRESHOLD = {
         "ponitto": 500000,
     },
     'no_ccnt_spend': {
+        "default": 10000,
         "bestgo": 50000,
         "baronmotors": 50000,
         "uiseong": 1000,
@@ -25,6 +39,7 @@ THRESHOLD = {
         "ponitto": 50000,
     },
     'avg_cpc_times': {
+        "default": 3.0,
         "bestgo": 2.0,
         "baronmotors": 2.0,
         "uiseong": 2.0,
@@ -32,6 +47,7 @@ THRESHOLD = {
         "ponitto": 2.0,
     },
     'avg_cpm_times': {
+        "default": 3.0,
         "bestgo": 2.0,
         "baronmotors": 2.0,
         "uiseong": 2.0,
@@ -39,6 +55,7 @@ THRESHOLD = {
         "ponitto": 2.0,
     },
     'avg_imp_times': {
+        "default": 3.0,
         "bestgo": 2.0,
         "baronmotors": 2.0,
         "uiseong": 2.0,
