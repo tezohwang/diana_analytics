@@ -24,23 +24,18 @@ from .forms import *
 def send_mail(request):
     if request.method == "POST":
         req = json.loads(request.body.decode('utf-8'))
-        email = req['email']
-        service = req['service']
 
         smtp = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         smtp.login(MAIL['login_id'], MAIL['login_pw'])
         msg = MIMEMultipart('alternative')
-        msg['Subject'] = 'Diana sign up Request!'
+        msg['Subject'] = 'Diana Email Service'
         msg['From'] = MAIL['from']
         recipients = ['support@wizpace.com']
         msg['To'] = ','.join(recipients)
 
-        html = '''
-        <p>Received Diana sign up request:</p>
-        <p>From: {}</p>
-        <p>Service: {}</p>
-        <p>Time: {}</p>
-        '''.format(email, service, datetime.datetime.now())
+        html = ""
+        for key in req.keys():
+            html += "<p>{}: {}</p>".format(key, req[key])
 
         msg.attach(MIMEText(html, 'html'))
         smtp.sendmail(msg['From'], recipients, msg.as_string())
