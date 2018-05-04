@@ -30,7 +30,7 @@ def send_mail(request):
         msg = MIMEMultipart('alternative')
         msg['Subject'] = 'Diana Email Service'
         msg['From'] = MAIL['from']
-        recipients = ['support@wizpace.com']
+        recipients = MAIL['recipients']
         msg['To'] = ','.join(recipients)
 
         html = ""
@@ -72,7 +72,7 @@ class ReportFacebook:
         msg['Subject'] = 'Diana Facebook Report on {}'.format((datetime.datetime.now(
         ) - datetime.timedelta(days=FETCH['from_days'])).strftime('%Y-%m-%d'))
         msg['From'] = MAIL['from']
-        recipients = content['user_email']
+        recipients = content['user_email'] + MAIL['recipients']
         msg['To'] = ','.join(recipients)
         html = create_mail_facebook(content)
 
@@ -112,7 +112,7 @@ class ReportNaver:
         msg['Subject'] = 'Diana Naver Report on {}'.format((datetime.datetime.now(
         ) - datetime.timedelta(days=FETCH['from_days'])).strftime('%Y-%m-%d'))
         msg['From'] = MAIL['from']
-        recipients = content['user_email']
+        recipients = content['user_email'] + MAIL['recipients']
         msg['To'] = ','.join(recipients)
         html = create_mail_naver(content)
 
