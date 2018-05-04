@@ -28,7 +28,7 @@ ENTITY_TYPES = {
 }
 
 TIME = {
-    'loop_wait_time': 0.01,
+    'loop_wait_time': 1.0,
     'limit_wait_time': 310,
 }
 

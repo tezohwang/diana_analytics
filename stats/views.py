@@ -204,7 +204,6 @@ class StatsFacebook:
         print(response)
         if 'error' in response:
             if response['error']['code'] == 17:
-                return []
                 print("reach api limit, wait {} seconds and retry".format(
                     TIME['limit_wait_time']))
                 time.sleep(TIME['limit_wait_time'])
@@ -262,7 +261,6 @@ class StatsFacebook:
                 print("Application does not have the capability to make this API call.")
                 return []
             if response['error']['code'] == 17:
-                return []
                 print("reach api limit, wait {} seconds and retry".format(
                     TIME['limit_wait_time']))
                 time.sleep(TIME['limit_wait_time'])
