@@ -6,11 +6,13 @@ from .database import connect_db
 from .config import *
 
 import datetime
+import time
 import json
+import requests
 import numpy as np
 
 
-# Controller Views
+# Router Views
 @csrf_exempt
 def get_stats(request):
     '''
@@ -123,3 +125,200 @@ def get_stats(request):
         print(RESULT[breakdown])
         return HttpResponse(json.dumps(RESULT[breakdown]).encode('utf-8'))
     return HttpResponse(json.dumps("error").encode('utf-8'))
+
+
+# Controller Views
+class StatsFacebook:
+    '''
+    '''
+
+    def __init__(self):
+        self.db = connect_db('diana')
+        self.fbadaccounts = self.db['fbadaccounts']
+        self.fbadcampaigns = self.db['fbadcampaigns']
+        self.fbadsets = self.db['fbadsets']
+        self.fbads = self.db['fbads']
+
+    def get_users(self):
+        # Diana users
+        # users = list(self.db['users'].find(
+        #     {"type": "facebook"},
+        # ))
+
+        # Only users who logged in Report webpage
+        users = list(self.db['userinfo'].find())
+        return users
+
+    def get_adaccounts(self, user):
+        adaccounts = list(self.fbadaccounts.find(
+            {"network_id": user['network_id']}
+        ))
+        return adaccounts
+
+    def get_entities_list(self, user, adaccount, entity_type):
+        params = {'date_preset': 'last_30d'}
+        url = 'https://graph.facebook.com/v3.0/' + \
+            adaccount['ad_account_id'] + '/' + entity_type + \
+            's?access_token=' + user['access_token']
+        headers = {
+            'Content-Type': 'application/json; charset=utf-8',
+            'content-encoding': 'gzip'
+        }
+        response = requests.get(url, params=params, headers=headers)
+        response = response.json()
+        print(response)
+        if 'error' in response:
+            if response['error']['code'] == 3:
+                print("Application does not have the capability to make this API call.")
+                return []
+            if response['error']['code'] == 17:
+                print("reach api limit, wait {} seconds and retry".format(
+                    TIME['limit_wait_time']))
+                time.sleep(TIME['limit_wait_time'])
+                response['data'] = self.get_entities_list(user, adaccount, entity_type)
+            if response['error']['code'] in [100, 190, 274]:
+                # print(response['error']['message'])
+                return "break"
+        try:
+            return response['data']
+        except Exception as e:
+            return []
+
+
+    def get_entity_insights(self, user, entity_type, entity, breakdown):
+        fields = FIELDS[entity_type]
+        params = {
+            "fields": str(fields),
+            "date_preset": "last_30d",
+            "time_increment": "all_days",
+            "breakdowns": str(breakdown),
+        }
+        url = 'https://graph.facebook.com/v3.0/' + \
+            entity['id'] + '/insights?access_token=' + user['access_token']
+        headers = {
+            'Content-Type': 'application/json; charset=utf-8',
+            'content-encoding': 'gzip'
+        }
+        response = requests.get(url, params=params, headers=headers)
+        response = response.json()
+        print(response)
+        if 'error' in response:
+            if response['error']['code'] == 17:
+                return []
+                print("reach api limit, wait {} seconds and retry".format(
+                    TIME['limit_wait_time']))
+                time.sleep(TIME['limit_wait_time'])
+                response['data'] = self.get_entity_insights(
+                    user, entity_type, entity, breakdown)
+        try:
+            return response['data']
+        except Exception as e:
+            return []
+
+    def update_db(self, entity_type, insights, breakdown):
+        collection = self.db['stats_' + entity_type]
+        for insight in insights:
+            insight['breakdowns'] = breakdown
+            if not breakdown:
+                insight['breakdowns'] = ['none']
+            insight['updated_time'] = datetime.datetime.now()
+            collection.replace_one(
+                {
+                    entity_type + '_id': insight[entity_type + '_id'],
+                    "breakdowns": insight['breakdowns'],
+                },
+                insight,
+                upsert=True,
+            )
+        print("update_db done")
+        return insights
+
+    def get_entity_field_values(self, user, adaccount, entity, entity_type):
+        params = {"date_preset": "last_30d"}
+        if not entity_type == 'adset':
+            return []
+        params['fields'] = str([
+            "id",
+            "account_id",
+            "campaign_id",
+            "name",
+            "billing_event",
+            "budget_remaining",
+            "daily_budget",
+            "lifetime_budget",
+            "optimization_goal",
+        ])
+        url = 'https://graph.facebook.com/v3.0/' + \
+            entity['id'] + '?access_token=' + user['access_token']
+        headers = {
+            'Content-Type': 'application/json; charset=utf-8',
+            'content-encoding': 'gzip'
+        }
+        response = requests.get(url, params=params, headers=headers)
+        response = response.json()
+        print(response)
+        if 'error' in response:
+            if response['error']['code'] == 3:
+                print("Application does not have the capability to make this API call.")
+                return []
+            if response['error']['code'] == 17:
+                return []
+                print("reach api limit, wait {} seconds and retry".format(
+                    TIME['limit_wait_time']))
+                time.sleep(TIME['limit_wait_time'])
+                response = self.get_entity_field_values(user, adaccount, entity, entity_type)
+        try:
+            return response
+        except Exception as e:
+            return []
+
+    def update_field_values(self, user, field_values, breakdown):
+        stats_adset = self.db['stats_adset']
+        if not breakdown:
+            breakdown = ['none']
+        stats_adset.update(
+            {
+                "adset_id": field_values['id'],
+                "breakdowns": breakdown,
+            },
+            {
+                "$set": {
+                    "billing_event": field_values['billing_event'],
+                    "budget_remaining": field_values['budget_remaining'],
+                    "daily_budget": field_values['daily_budget'],
+                    "lifetime_budget": field_values['lifetime_budget'],
+                    "optimization_goal": field_values['optimization_goal'],
+                }
+            }
+        )
+        print("update_field_values done")
+        return field_values
+
+    def fetch_stats(self):
+        start_time = time.time()
+        # ------------------------
+        users = self.get_users()
+
+        for user in users:
+            adaccounts = self.get_adaccounts(user)
+            for breakdown in BREAKDOWNS['facebook']:
+                for adaccount in adaccounts:
+                    for entity_type in ENTITY_TYPES['facebook']:
+                        entities = self.get_entities_list(user, adaccount, entity_type)
+                        if entities == "break":
+                            break
+                        time.sleep(TIME['loop_wait_time'])
+                        for entity in entities:
+                            insights = self.get_entity_insights(
+                                user, entity_type, entity, breakdown)
+                            if insights:
+                                self.update_db(entity_type, insights, breakdown)
+                                time.sleep(TIME['loop_wait_time'])
+                                field_values = self.get_entity_field_values(user, adaccount, entity, entity_type)
+                                if field_values:
+                                    self.update_field_values(user, field_values, breakdown)
+        # ------------------------
+        print("start_time", start_time)
+        print("--- %s seconds ---" % (time.time() - start_time))
+        print("fetch_all done: {}".format(datetime.datetime.now()))
+        return users
