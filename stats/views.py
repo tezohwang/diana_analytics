@@ -140,6 +140,9 @@ class StatsFacebook:
         self.fbads = self.db['fbads']
 
     def get_users(self):
+        '''
+        Getting users list from Database.
+        '''
         # Diana users
         # users = list(self.db['users'].find(
         #     {"type": "facebook"},
