@@ -103,7 +103,7 @@ class ReportNaver:
     def send_mail(self, content):
         '''
         '''
-        if not content['naver']['campaigns']:
+        if not content['naver']:
             return print("No campaigns data of Naver: {}".format(datetime.datetime.now()))
 
         smtp = smtplib.SMTP_SSL('smtp.gmail.com', 465)

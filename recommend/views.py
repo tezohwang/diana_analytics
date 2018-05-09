@@ -23,12 +23,14 @@ class RecommendFacebook:
         self.content = {}
 
     def recommend_for_report(self):
-        users = list(self.db['userinfo'].find())
+        users = list(self.db['users'].find(
+            {"type": "facebook"}
+        ))
         for user in users:
             self.content = {
                 "user_id": user['user_id'],
                 "network_id": user['network_id'],
-                "username": user['username'],
+                "username": user['name'],
                 "email": user['email'],
                 "facebook": {
                     "ads": [],
@@ -57,7 +59,7 @@ class RecommendFacebook:
 
     def get_adaccounts(self):
         adaccounts = list(self.fbadaccounts.find(
-            {"network_id": self.content['network_id']}
+            {"user_id": self.content['user_id']}
         ))
         return adaccounts
 
@@ -285,7 +287,7 @@ class RecommendFacebook:
                 {"$set": {"recommendation": recos}}
             )
         print("update_recommendations done: {}".format(datetime.datetime.now()))
-        return recos
+        return self.content['facebook']['recos']
 
 
 class RecommendNaver:
@@ -295,6 +297,7 @@ class RecommendNaver:
 
     def __init__(self):
         self.db = connect_db('diana')
+        self.members = self.db['members']
         self.nvkeywords = self.db['nvkeywords']
         self.nvaccounts = self.db['nvaccounts']
         self.nvstats = self.db['nvstats']
@@ -302,48 +305,33 @@ class RecommendNaver:
         self.content = {}
 
     def recommend_for_report(self):
-        autobid_db = connect_db('autobidding')
-        users = list(autobid_db['users'].find())
 
-        # # 다이아나 members & sign up 프로세스 완성되면 추가 적용
-        # db = connect_db('diana')
-        # users = list(db['users'].find(
-        # 	{"type": "naver"},
-        # ))
-        # members = db['members']
-        # contents = []
-        # for user in users:
-        # 	user_email = members.find_one(
-        # 		{"user_id": user['user_id']}
-        # 	)['email']
-
+        users = list(self.db['users'].find(
+            {"type": "naver"},
+        ))
         for user in users:
-            customer_id = str(user['customer_id'])
-            user_email = ['tony.hwang@wizpace.com']
-            self.content = {
-                "customer_id": customer_id,
-                "username": user['user_id'],
-                "user_email": user_email,
-                "naver": {
-                    "campaigns": [],
-                    "adgroups": [],
-                },
-            }
-            if not self.content['username'] in CLIENTS['naver']:
-                self.content['username'] = "default"
-            self.fetch_by_customer_id()
 
-            if self.content['naver']['campaigns']:
-                campaigns = self.content['naver']['campaigns']
-                campaigns = sorted(
-                    campaigns, key=lambda campaign: campaign['name'])
+            user_email = self.members.find_one(
+                {"user_id": user['user_id']}
+            )['email']
 
-            if self.content['naver']['adgroups']:
-                adgroups = self.content['naver']['adgroups']
-                adgroups = sorted(
-                    adgroups, key=lambda adgroup: adgroup['name'])
-            self.recommend_entity()
-            self.contents.append(self.content)
+            adaccounts = self.nvaccounts.find(
+                {"user_id": user['user_id']},
+            )
+
+            for adaccount in adaccounts:
+                self.content = {
+                    "user_id": user['user_id'],
+                    "username": user['name'],
+                    "user_email": [user_email],
+                    "customer_id": adaccount['client_customer_id'],
+                    "naver": {},
+                }
+                if not self.content['username'] in CLIENTS['naver']:
+                    self.content['username'] = "default"
+                self.fetch_by_customer_id()
+
+                self.contents.append(self.content)
 
         print(self.contents)
         print("recommend_for_report done: {}".format(datetime.datetime.now()))
@@ -357,16 +345,26 @@ class RecommendNaver:
         # 오늘 status가 ELIGIBLE(ON)인 캠페인들
         campaigns_on_today = list(self.db['nvcampaigns'].find(
             {
+                "user_id": self.content['user_id'],
                 "customer_id": self.content['customer_id'],
                 "status": "ELIGIBLE",
             }
         ))
+
         if campaigns_on_today:
-            self.content['naver']['campaigns'] = campaigns_on_today
+            campaigns_on_today = sorted(
+                campaigns_on_today, key=lambda campaign_today: campaign_today['name'])
+
+        self.content['naver'] = {
+            "campaigns": campaigns_on_today,
+            "adgroups": [],
+            "recos": [],
+        }
 
         # 오늘 status가 ELIGIBLE(ON), 어제 stat이 있는 광고그룹들
         adgroups_on_today = list(self.db['nvadgroups'].find(
             {
+                "user_id": self.content['user_id'],
                 "customer_id": self.content['customer_id'],
                 "status": "ELIGIBLE",
                 "status_reason": "ELIGIBLE",
@@ -374,7 +372,11 @@ class RecommendNaver:
             }
         ))
         if adgroups_on_today:
-            self.content['naver']['adgroups'] = adgroups_on_today
+            adgroups_on_today = sorted(
+                adgroups_on_today, key=lambda adgroup_today: adgroup_today['name'])
+        self.content['naver']['adgroups'] = adgroups_on_today
+            
+        self.recommend_entity()
 
         print("fetch_naver_data done: {}".format(datetime.datetime.now()))
         return self.content
@@ -382,13 +384,12 @@ class RecommendNaver:
     def recommend_entity(self):
         '''
         '''
-        self.content['naver']['recos'] = []
-
         # 현재까지 1000원 이상 사용한 키워드 리스트
         keyword_list = list(self.nvkeywords.find(
             {
-                'customer_id': self.content['customer_id'],
-                'last_month.spend': {'$gte': THRESHOLD['spend'][self.content['username']]},
+                "user_id": self.content['user_id'],
+                "customer_id": self.content['customer_id'],
+                "last_month.spend": {'$gte': THRESHOLD['spend'][self.content['username']]},
             },
         ))
 
@@ -417,9 +418,9 @@ class RecommendNaver:
         if sum_ccnts == 0 and sum_spends >= THRESHOLD['no_ccnt_spend'][self.content['username']]:
             self.content['naver']['recos'].append(
                 {
-                    'keyword_id': keyword['keyword_id'],
-                    'name': keyword['name'],
-                    'reco': '7일간 소진 비용({}원) 대비 전환이 전혀 없습니다.'.format(sum_spends, ','),
+                    "keyword_id": keyword['keyword_id'],
+                    "name": keyword['name'],
+                    "reco": "7일간 소진 비용({}원) 대비 전환이 전혀 없습니다.".format(sum_spends, ','),
                 }
             )
         # 지난 7일간 CPC 대비 CTR이 가장 좋은 순위를 추천
@@ -509,6 +510,14 @@ class RecommendNaver:
             recos = []
             username = self.nvaccounts.find_one({"client_customer_id": keyword['customer_id']})[
                 'client_login_id']
+            # 만약 username이 Me 일 때는, users collection에서 이름을 가져옴
+            if username == 'Me':
+                username = self.db['users'].find_one(
+                    {
+                        "user_id": keyword['user_id'],
+                        "type": "naver",
+                    }
+                )['name']
             if not username in CLIENTS['naver']:
                 username = "default"
             last_week = keyword['last_week']
