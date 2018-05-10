@@ -95,6 +95,7 @@ class ReportNaver:
         '''
         contents = RecommendNaver().recommend_for_report()
         for content in contents:
+            # print(content)
             self.send_mail(content)
 
         print("send_report done: {}".format(datetime.datetime.now()))

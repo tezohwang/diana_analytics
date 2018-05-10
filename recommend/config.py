@@ -23,7 +23,7 @@ CLIENTS = {
 
 THRESHOLD = {
     "spend": {
-        "default": 100000,
+        "default": 500000,
         "bestgo": 500000,
         "baronmotors": 500000,
         "uiseong": 3000,
@@ -31,7 +31,7 @@ THRESHOLD = {
         "ponitto": 50000,
     },
     'no_ccnt_spend': {
-        "default": 10000,
+        "default": 50000,
         "bestgo": 50000,
         "baronmotors": 50000,
         "uiseong": 1000,
