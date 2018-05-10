@@ -14,7 +14,7 @@ MAIL = {
     'login_pw': 'wizpace0',
     'from': 'support@wizpace.com',
     'recipients': [
-        # 'support@wizpace.com',
+        'support@wizpace.com',
         'tony.hwang@wizpace.com',
     ]
 }
