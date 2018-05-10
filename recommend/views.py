@@ -523,6 +523,12 @@ class RecommendNaver:
             last_week = keyword['last_week']
             yesterday = keyword['yesterday']
 
+            # 지난 7일간 최적 효율 순위
+            if 'best_rank' in last_week:
+                if last_week['best_rank']:
+                    reco = "7일간 최적 효율 순위는 {}위 입니다".format(last_week['best_rank'])
+                    recos.append(reco)
+
             # 지난 7일간 1000원 이상 사용했지만, 전환이 전혀 없는 키워드 검출
             if last_week['ccnt'] == 0 and last_week['spend'] >= THRESHOLD['no_ccnt_spend'][username]:
                 reco = "7일간 소진 비용({}원) 대비 전환이 전혀 없습니다.".format(
