@@ -19,6 +19,7 @@ class RecommendFacebook:
         self.fbadaccounts = self.db['fbadaccounts']
         self.fbads = self.db['fbads']
         self.fbinsights = self.db['fbinsights']
+        self.config = self.db['config'].find_one({"for": "recommend"})
         self.contents = []
         self.content = {}
 
@@ -301,11 +302,12 @@ class RecommendNaver:
         self.nvkeywords = self.db['nvkeywords']
         self.nvaccounts = self.db['nvaccounts']
         self.nvstats = self.db['nvstats']
+        self.config = self.db['config']
+        self.config_for_recommend = self.config.find_one({"for": "recommend"})
         self.contents = []
         self.content = {}
 
     def recommend_for_report(self):
-
         users = list(self.db['users'].find(
             {"type": "naver"},
         ))
@@ -327,8 +329,24 @@ class RecommendNaver:
                     "customer_id": adaccount['client_customer_id'],
                     "naver": {},
                 }
-                if not self.content['username'] in CLIENTS['naver']:
-                    self.content['username'] = "default"
+                # username이 기존에 없던 계정인 경우, config에 새로 추가
+                username = self.content['username']
+                if not username in self.config_for_recommend['client']['naver']:
+                    self.config.update_one(
+                        {"for": "recommend"},
+                        {
+                            {"$addToSet": {"client.naver": username}},
+                            {"$set": 
+                                {
+                                    "threshold.spend." + username: 500000,
+                                    "threshold.no_ccnt_spend." + username: 50000,
+                                    "threshold.avg_cpc_times." + username: 3,
+                                    "threshold.avg_cpm_times." + username: 3,
+                                    "threshold.avg_imp_times." + username: 3,
+                                }
+                            }
+                        }
+                    )
                 self.fetch_by_customer_id()
 
                 self.contents.append(self.content)
@@ -384,12 +402,13 @@ class RecommendNaver:
     def recommend_entity(self):
         '''
         '''
+        threshold = self.config_for_recommend['threshold']
         # 현재까지 1000원 이상 사용한 키워드 리스트
         keyword_list = list(self.nvkeywords.find(
             {
                 "user_id": self.content['user_id'],
                 "customer_id": self.content['customer_id'],
-                "last_month.spend": {'$gte': THRESHOLD['spend'][self.content['username']]},
+                "last_month.spend": {'$gte': threshold['spend'][self.content['username']]},
             },
         ))
 
@@ -402,6 +421,7 @@ class RecommendNaver:
     def recommend_keyword(self, keyword):
         '''
         '''
+        threshold = self.config_for_recommend['threshold']
         # 7일전부터 어제까지의 데이터
         data_7days = list(self.nvstats.find(
             {
@@ -415,7 +435,7 @@ class RecommendNaver:
                          for data in data_7days if 'ccnt' in data])
         sum_spends = sum([data['spend']
                           for data in data_7days if 'spend' in data])
-        if sum_ccnts == 0 and sum_spends >= THRESHOLD['no_ccnt_spend'][self.content['username']]:
+        if sum_ccnts == 0 and sum_spends >= threshold['no_ccnt_spend'][self.content['username']]:
             self.content['naver']['recos'].append(
                 {
                     "keyword_id": keyword['keyword_id'],
@@ -450,7 +470,7 @@ class RecommendNaver:
             avg_cpc_for_7days = np.mean(cpc_for_7days)
 
             if all([avg_cpc_for_7days, 'cpc' in data_7days[-1]]):
-                if data_7days[-1]['cpc'] > avg_cpc_for_7days * THRESHOLD['avg_cpc_times'][self.content['username']]:
+                if data_7days[-1]['cpc'] > avg_cpc_for_7days * threshold['avg_cpc_times'][self.content['username']]:
                     self.content['naver']['recos'].append(
                         {
                             'keyword_id': keyword['keyword_id'],
@@ -468,7 +488,7 @@ class RecommendNaver:
             avg_cpm_for_7days = np.mean(cpm_for_7days)
 
             if all([avg_cpm_for_7days, 'spend' in data_7days[-1], 'impressions' in data_7days[-1]]):
-                if data_7days[-1]['spend']/data_7days[-1]['impressions'] > avg_cpm_for_7days * THRESHOLD['avg_cpm_times'][self.content['username']]:
+                if data_7days[-1]['spend']/data_7days[-1]['impressions'] > avg_cpm_for_7days * threshold['avg_cpm_times'][self.content['username']]:
                     self.content['naver']['recos'].append(
                         {
                             'keyword_id': keyword['keyword_id'],
@@ -486,7 +506,7 @@ class RecommendNaver:
             avg_imp_for_7days = np.mean(imp_for_7days)
 
             if all([avg_imp_for_7days, 'impressions' in data_7days[-1]]):
-                if data_7days[-1]['impressions'] > avg_imp_for_7days * THRESHOLD['avg_imp_times'][self.content['username']]:
+                if data_7days[-1]['impressions'] > avg_imp_for_7days * threshold['avg_imp_times'][self.content['username']]:
                     self.content['naver']['recos'].append(
                         {
                             'keyword_id': keyword['keyword_id'],
@@ -502,6 +522,8 @@ class RecommendNaver:
         '''
         update recommendations of every keyword with data of 7days and yesterday
         '''
+        threshold = self.config_for_recommend['threshold']
+        clients = self.config_for_recommend['client']
         keyword_list = self.nvkeywords.find({"status": "ELIGIBLE"})
 
         for keyword in keyword_list:
@@ -518,8 +540,10 @@ class RecommendNaver:
                         "type": "naver",
                     }
                 )['name']
-            if not username in CLIENTS['naver']:
+            if not username in clients['naver']:
+                ### 여기도 처리해줘야함 ###
                 username = "default"
+                ### -------------- ###
             last_week = keyword['last_week']
             yesterday = keyword['yesterday']
 
@@ -530,13 +554,13 @@ class RecommendNaver:
                     recos.append(reco)
 
             # 지난 7일간 1000원 이상 사용했지만, 전환이 전혀 없는 키워드 검출
-            if last_week['ccnt'] == 0 and last_week['spend'] >= THRESHOLD['no_ccnt_spend'][username]:
+            if last_week['ccnt'] == 0 and last_week['spend'] >= threshold['no_ccnt_spend'][username]:
                 reco = "7일간 소진 비용({}원) 대비 전환이 전혀 없습니다.".format(
                     format(last_week['spend'], ','))
                 recos.append(reco)
 
             # 지난 7일간 평균 CPC 대비 어제 CPC가 급상승(2배 이상)한 키워드 검출 (CPC가 0인 데이터는 제외)
-            if yesterday['cpc'] > last_week['cpc'] * THRESHOLD['avg_cpc_times'][username]:
+            if yesterday['cpc'] > last_week['cpc'] * threshold['avg_cpc_times'][username]:
                 last_week_cpc = format(round(last_week['cpc']), ',')
                 yesterday_cpc = format(round(yesterday['cpc']), ',')
                 reco = "7일간 평균({}원) 대비 1일 전 CPC({}원)가 급상승했습니다.".format(
@@ -544,7 +568,7 @@ class RecommendNaver:
                 recos.append(reco)
 
             # 지난 7일간 평균 CPM 대비 어제 CPM이 급상승(2배 이상)한 키워드 검출 (CPM이 0인 데이터는 제외)
-            if yesterday['cpm'] > last_week['cpm'] * THRESHOLD['avg_cpc_times'][username]:
+            if yesterday['cpm'] > last_week['cpm'] * threshold['avg_cpc_times'][username]:
                 last_week_cpm = format(round(last_week['cpm']), ',')
                 yesterday_cpm = format(round(yesterday['cpm']), ',')
                 reco = "7일간 평균({}원) 대비 1일 전 CPM({}원)이 급상승했습니다.".format(
@@ -552,7 +576,7 @@ class RecommendNaver:
                 recos.append(reco)
 
             # 지난 7일간 평균 Impressions 대비 어제 Impressions 급상승(2배 이상)한 키워드 검출 (Impressions이 0인 데이터는 제외)
-            if yesterday['impressions'] > last_week['impressions'] * THRESHOLD['avg_cpc_times'][username]:
+            if yesterday['impressions'] > last_week['impressions'] * threshold['avg_cpc_times'][username]:
                 last_week_imp = format(round(last_week['impressions']), ',')
                 yesterday_imp = format(round(yesterday['impressions']), ',')
                 reco = "7일간 평균({}회) 대비 1일 전 노출({}회)이 급상승했습니다.".format(
