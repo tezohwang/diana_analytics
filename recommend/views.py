@@ -332,23 +332,25 @@ class RecommendNaver:
                 # username이 기존에 없던 계정인 경우, config에 새로 추가
                 username = self.content['username']
                 if not username in self.config_for_recommend['client']['naver']:
+
                     self.config.update_one(
                         {"for": "recommend"},
-                        {
-                            {"$addToSet": {"client.naver": username}},
-                            {"$set": 
-                                {
-                                    "threshold.spend." + username: 500000,
-                                    "threshold.no_ccnt_spend." + username: 50000,
-                                    "threshold.avg_cpc_times." + username: 3,
-                                    "threshold.avg_cpm_times." + username: 3,
-                                    "threshold.avg_imp_times." + username: 3,
-                                }
-                            }
-                        }
+                        {"$addToSet": {"client.naver": username}},
                     )
-                self.fetch_by_customer_id()
+                    self.config.update_one(
+                        {"for": "recommend"},
+                        {"$set": {
+                                "threshold.spend.{}".format(username): 500000,
+                                "threshold.no_ccnt_spend.{}".format(username): 50000,
+                                "threshold.avg_cpc_times.{}".format(username): 3,
+                                "threshold.avg_cpm_times.{}".format(username): 3,
+                                "threshold.avg_imp_times.{}".format(username): 3,
+                            }
+                        },
+                    )
+                    self.config_for_recommend = self.config.find_one({"for": "recommend"})
 
+                self.fetch_by_customer_id()
                 self.contents.append(self.content)
 
         print(self.contents)
@@ -488,14 +490,15 @@ class RecommendNaver:
             avg_cpm_for_7days = np.mean(cpm_for_7days)
 
             if all([avg_cpm_for_7days, 'spend' in data_7days[-1], 'impressions' in data_7days[-1]]):
-                if data_7days[-1]['spend']/data_7days[-1]['impressions'] > avg_cpm_for_7days * threshold['avg_cpm_times'][self.content['username']]:
-                    self.content['naver']['recos'].append(
-                        {
-                            'keyword_id': keyword['keyword_id'],
-                            'name': keyword['name'],
-                            'reco': '7일간 평균({}원)에 비해 노출 경쟁(CPM, {}원)이 급상승 했습니다'.format(round(avg_cpm_for_7days, 2), round(data_7days[-1]['spend']/data_7days[-1]['impressions'], 2)),
-                        }
-                    )
+                if data_7days[-1]['spend'] * data_7days[-1]['impressions']:
+                    if data_7days[-1]['spend']/data_7days[-1]['impressions'] > avg_cpm_for_7days * threshold['avg_cpm_times'][self.content['username']]:
+                        self.content['naver']['recos'].append(
+                            {
+                                'keyword_id': keyword['keyword_id'],
+                                'name': keyword['name'],
+                                'reco': '7일간 평균({}원)에 비해 노출 경쟁(CPM, {}원)이 급상승 했습니다'.format(round(avg_cpm_for_7days, 2), round(data_7days[-1]['spend']/data_7days[-1]['impressions'], 2)),
+                            }
+                        )
         # 지난 7일간 평균 Impressions 대비 어제 Impressions 급상승(2배 이상)한 키워드 검출 (Impressions이 0인 데이터는 제외)
         if data_7days:
             imp_for_7days = []
