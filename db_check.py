@@ -9,7 +9,11 @@ def main():
     db = connect_db('diana')
     db_check = db['db_check']
     try:
-        result = list(db_check.find())
+        result = db_check.update_one(
+            {"checker": "diana_analytics"},
+            {"$set": {"last_check_time": datetime.datetime.now()}},
+            upsert=True
+        )
         print(result)
         print("db_check done: {}".format(datetime.datetime.now()))
     except Exception as e:
