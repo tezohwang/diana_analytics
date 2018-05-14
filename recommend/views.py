@@ -19,7 +19,11 @@ class RecommendFacebook:
         self.fbadaccounts = self.db['fbadaccounts']
         self.fbads = self.db['fbads']
         self.fbinsights = self.db['fbinsights']
-        self.config = self.db['config'].find_one({"for": "recommend"})
+        try:
+            self.config = self.db['config'].find_one({"for": "recommend"})
+        except Exception as e:
+            print("Database Connection Error")
+            print(e)
         self.contents = []
         self.content = {}
 
@@ -547,8 +551,11 @@ class RecommendNaver:
                 ### 여기도 처리해줘야함 ###
                 username = "default"
                 ### -------------- ###
+            
+            # 7일간 데이터 체크
+            if not 'last_week' in keyword:
+                return recos
             last_week = keyword['last_week']
-            yesterday = keyword['yesterday']
 
             # 지난 7일간 최적 효율 순위
             if 'best_rank' in last_week:
@@ -561,6 +568,11 @@ class RecommendNaver:
                 reco = "7일간 소진 비용({}원) 대비 전환이 전혀 없습니다.".format(
                     format(last_week['spend'], ','))
                 recos.append(reco)
+            
+            # 어제 데이터 체크
+            if not 'yesterday' in keyword:
+                return recos
+            yesterday = keyword['yesterday']
 
             # 지난 7일간 평균 CPC 대비 어제 CPC가 급상승(2배 이상)한 키워드 검출 (CPC가 0인 데이터는 제외)
             if yesterday['cpc'] > last_week['cpc'] * threshold['avg_cpc_times'][username]:
