@@ -19,11 +19,7 @@ class RecommendFacebook:
         self.fbadaccounts = self.db['fbadaccounts']
         self.fbads = self.db['fbads']
         self.fbinsights = self.db['fbinsights']
-        try:
-            self.config = self.db['config'].find_one({"for": "recommend"})
-        except Exception as e:
-            print("Database Connection Error")
-            print(e)
+        self.config = self.db['config'].find_one({"for": "recommend"})
         self.contents = []
         self.content = {}
 
