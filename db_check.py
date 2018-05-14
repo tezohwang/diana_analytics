@@ -17,9 +17,11 @@ def main():
         print(result)
         print("db_check done: {}".format(datetime.datetime.now()))
     except Exception as e:
-        data = json.dumps({"DB Error": str(e)}).encode('utf-8')
-        r = requests.post('http://127.0.0.1:8000/report/send_mail', data=data)
-        print(r)
+        time_now = datetime.datetime.now().strftime('%H%M%S')
+        if '230000' > time_now and time_now > '070000':
+            data = json.dumps({"DB Error": str(e)}).encode('utf-8')
+            r = requests.post('http://127.0.0.1:8000/report/send_mail', data=data)
+            print(r)
         print("DB Error send_mail done: {}".format(datetime.datetime.now()))
 
 
