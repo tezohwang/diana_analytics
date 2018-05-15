@@ -313,9 +313,13 @@ class RecommendNaver:
         ))
         for user in users:
 
-            user_email = self.members.find_one(
+            user_member = self.members.find_one(
                 {"user_id": user['user_id']}
-            )['email']
+            )
+            # default email value
+            user_email = "tony.hwang@wizpace.com"
+            if user_member:
+                user_email = user_member['email']
 
             adaccounts = self.nvaccounts.find(
                 {"user_id": user['user_id']},
