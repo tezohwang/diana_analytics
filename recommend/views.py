@@ -317,7 +317,8 @@ class RecommendNaver:
                 {"user_id": user['user_id']}
             )
             # default email value
-            user_email = "tony.hwang@wizpace.com"
+            # user_email = "tony.hwang@wizpace.com"
+            user_email = ""
             if user_member:
                 user_email = user_member['email']
 
@@ -344,15 +345,16 @@ class RecommendNaver:
                     self.config.update_one(
                         {"for": "recommend"},
                         {"$set": {
-                                "threshold.spend.{}".format(username): 500000,
-                                "threshold.no_ccnt_spend.{}".format(username): 50000,
-                                "threshold.avg_cpc_times.{}".format(username): 3,
-                                "threshold.avg_cpm_times.{}".format(username): 3,
-                                "threshold.avg_imp_times.{}".format(username): 3,
-                            }
+                            "threshold.spend.{}".format(username): 500000,
+                            "threshold.no_ccnt_spend.{}".format(username): 50000,
+                            "threshold.avg_cpc_times.{}".format(username): 3,
+                            "threshold.avg_cpm_times.{}".format(username): 3,
+                            "threshold.avg_imp_times.{}".format(username): 3,
+                        }
                         },
                     )
-                    self.config_for_recommend = self.config.find_one({"for": "recommend"})
+                    self.config_for_recommend = self.config.find_one(
+                        {"for": "recommend"})
 
                 self.fetch_by_customer_id()
                 self.contents.append(self.content)
@@ -399,7 +401,7 @@ class RecommendNaver:
             adgroups_on_today = sorted(
                 adgroups_on_today, key=lambda adgroup_today: adgroup_today['name'])
         self.content['naver']['adgroups'] = adgroups_on_today
-            
+
         self.recommend_entity()
 
         print("fetch_naver_data done: {}".format(datetime.datetime.now()))
@@ -537,8 +539,12 @@ class RecommendNaver:
             print("Keyword: {}".format(keyword['name']))
 
             recos = []
-            username = self.nvaccounts.find_one({"client_customer_id": keyword['customer_id']})[
-                'client_login_id']
+            username = self.nvaccounts.find_one(
+                {
+                    "client_customer_id": keyword['customer_id'],
+                    "user_id": keyword['user_id'],
+                }
+            )['client_login_id']
             # 만약 username이 Me 일 때는, users collection에서 이름을 가져옴
             if username == 'Me':
                 username = self.db['users'].find_one(
@@ -551,7 +557,7 @@ class RecommendNaver:
                 ### 여기도 처리해줘야함 ###
                 username = "default"
                 ### -------------- ###
-            
+
             # 7일간 데이터 체크
             if not 'last_week' in keyword:
                 return recos
@@ -560,7 +566,8 @@ class RecommendNaver:
             # 지난 7일간 최적 효율 순위
             if 'best_rank' in last_week:
                 if last_week['best_rank']:
-                    reco = "7일간 최적 효율 순위는 {}위 입니다".format(last_week['best_rank'])
+                    reco = "7일간 최적 효율 순위는 {}위 입니다".format(
+                        last_week['best_rank'])
                     recos.append(reco)
 
             # 지난 7일간 1000원 이상 사용했지만, 전환이 전혀 없는 키워드 검출
@@ -568,7 +575,7 @@ class RecommendNaver:
                 reco = "7일간 소진 비용({}원) 대비 전환이 전혀 없습니다.".format(
                     format(last_week['spend'], ','))
                 recos.append(reco)
-            
+
             # 어제 데이터 체크
             if not 'yesterday' in keyword:
                 return recos
@@ -600,9 +607,12 @@ class RecommendNaver:
 
             # update recos for each keyword
             self.nvkeywords.update_one(
-                {"keyword_id": keyword['keyword_id']},
+                {
+                    "user_id": keyword['user_id'],
+                    "keyword_id": keyword['keyword_id'],
+                },
                 {"$set": {"recommendation": recos}}
             )
-
+            print(recos)
         print("update_recommendations done: {}".format(datetime.datetime.now()))
         return recos
