@@ -48,6 +48,7 @@ class RecommendFacebook:
             adaccounts = self.get_adaccounts()
 
             for adaccount in adaccounts:
+                self.content['lang'] = self.get_lang(adaccount)
                 ads = self.get_ads(adaccount)
 
                 if ads:
