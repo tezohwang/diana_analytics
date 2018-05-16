@@ -291,9 +291,13 @@ class RecommendFacebook:
             self.content['lang'] = self.get_lang(adaccount)
             recos = self.recommend_ad(ad)
             self.fbads.update_one(
-                {"ad_id": ad['ad_id']},
+                {
+                    "user_id": ad['user_id'],
+                    "ad_id": ad['ad_id'],
+                },
                 {"$set": {"recommendation": recos}}
             )
+            print(recos)
         print("update_recommendations done: {}".format(datetime.datetime.now()))
         return self.content['facebook']['recos']
 
