@@ -29,6 +29,8 @@ class RecommendFacebook:
         ))
         for user in users:
             ## for test ##
+            # user['email'] = 'tony.hwang@wizpace.com'
+
             if not user['email']:
                 user['email'] = 'tony.hwang@wizpace.com'
             self.content = {

@@ -26,6 +26,7 @@ def create_mail_facebook(content):
                 text-align: center;
                 padding: 5px;
             }
+
             tr:nth-child(even) {background-color: #f1fbf2;}
             @media(max-width: 600px) {
 
