@@ -28,11 +28,14 @@ class RecommendFacebook:
             {"type": "facebook"}
         ))
         for user in users:
+            ## for test ##
+            if not user['email']:
+                user['email'] = 'tony.hwang@wizpace.com'
             self.content = {
                 "user_id": user['user_id'],
                 "network_id": user['network_id'],
                 "username": user['name'],
-                "email": user['email'],
+                "user_email": [user['email']],
                 "facebook": {
                     "ads": [],
                 },
@@ -60,7 +63,10 @@ class RecommendFacebook:
 
     def get_adaccounts(self):
         adaccounts = list(self.fbadaccounts.find(
-            {"user_id": self.content['user_id']}
+            {
+                "user_id": self.content['user_id'],
+                "yesterday.spend": {"$gt": 0},
+            }
         ))
         return adaccounts
 
@@ -121,24 +127,24 @@ class RecommendFacebook:
                 data[0]['inline_link_click_ctr'], 2)
         if 'outbound_clicks_ctr' in data[0]:
             bound_clicks_ctr = round(
-                data[0]['outbound_clicks_ctr'][0]['value'], 2)
+                data[0]['outbound_clicks_ctr'], 2)
 
-        if ctr < CONDITIONS['ctr'] and score <= 5:
+        if ctr < self.config['conditions']['ctr'] and score <= 5:
             # 전체 클릭률 4% 이하이고, 관련성 점수가 5 이하일 때,
-            reco = RECOS[self.content['lang']]['ctr_bad']
+            reco = self.config['recos'][self.content['lang']]['ctr_bad']
             self.append_reco(reco, ad)
 
         if bound_clicks_ctr:
-            if bound_clicks_ctr < CONDITIONS['bound_clicks_ctr'] and score <= 5:
+            if bound_clicks_ctr < self.config['conditions']['bound_clicks_ctr'] and score <= 5:
                 # 바운드 클릭률 2% 이하이고, 관련성 점수가 5 이하이면,
                 if data[0]['canvas_avg_view_percent']:
                     # 캔버스 기능이 있으면,
-                    reco = RECOS[self.content['lang']
+                    reco = self.config['recos'][self.content['lang']
                                  ]['bound_clicks_ctr_bad_with_canvas']
                     self.append_reco(reco, ad)
                     return self.content
                 # 캔버스가 없으면,
-                reco = RECOS[self.content['lang']
+                reco = self.config['recos'][self.content['lang']
                              ]['bound_clicks_ctr_bad_no_canvas']
                 self.append_reco(reco, ad)
 
@@ -147,8 +153,8 @@ class RecommendFacebook:
 
     def limit_check(self, data, ad):
         cpm = data[0]['cpm']
-        if cpm > CONDITIONS['cpm_limit']:
-            reco = RECOS[self.content['lang']]['cpm_limit']
+        if cpm > self.config['conditions']['cpm_limit']:
+            reco = self.config['recos'][self.content['lang']]['cpm_limit']
             self.append_reco(reco, ad)
 
         print("limit_check done: {}".format(datetime.datetime.now()))
@@ -158,8 +164,8 @@ class RecommendFacebook:
         frequencies = [_data['frequency'] for _data in data]
         avg_frequency = np.mean(frequencies)
 
-        if avg_frequency > CONDITIONS['frequency_limit']:
-            reco = RECOS[self.content['lang']]['frequency_limit']
+        if avg_frequency > self.config['conditions']['frequency_limit']:
+            reco = self.config['recos'][self.content['lang']]['frequency_limit']
             self.append_reco(reco, ad)
 
         print("frequency_check done: {}".format(datetime.datetime.now()))
@@ -169,12 +175,12 @@ class RecommendFacebook:
         spends = [_data['spend'] for _data in data]
 
         # 전날 대비 지출의 급격한 상승 체크
-        if spends[-1] >= spends[-2] * CONDITIONS['spend_times_for_boom'] and spends[-1] >= CONDITIONS['spend_min_for_check']:
-            reco = RECOS[self.content['lang']]['spend_boom']
+        if spends[-1] >= spends[-2] * self.config['conditions']['spend_times_for_boom'] and spends[-1] >= self.config['conditions']['spend_min_for_check']:
+            reco = self.config['recos'][self.content['lang']]['spend_boom']
             self.append_reco(reco, ad)
 
         # 지출 급격한 변화 체크에는 최소 3일간 데이터가 필요
-        if len(spends) < CONDITIONS['spend_length']:
+        if len(spends) < self.config['conditions']['spend_length']:
             print("not enough spends data: {}".format(len(spends)))
             return self.content
 
@@ -185,11 +191,11 @@ class RecommendFacebook:
         if std_spend > avg_spend:
             # 지출의 변동이 심하면, (평균 이상이면)
             if spends[-3] > spends[-2] and spends[-2] > spends[-1]:
-                reco = RECOS[self.content['lang']]['spend_down']
+                reco = self.config['recos'][self.content['lang']]['spend_down']
             elif spends[-3] < spends[-2] and spends[-2] < spends[-1]:
-                reco = RECOS[self.content['lang']]['spend_up']
+                reco = self.config['recos'][self.content['lang']]['spend_up']
             else:
-                reco = RECOS[self.content['lang']]['spend_unstable']
+                reco = self.config['recos'][self.content['lang']]['spend_unstable']
             self.append_reco(reco, ad)
 
         print("spend_check done: {}".format(datetime.datetime.now()))
@@ -198,7 +204,7 @@ class RecommendFacebook:
     def cpm_check(self, data, ad):
         cpms = [_data['cpm'] for _data in data]
 
-        if len(cpms) < CONDITIONS['cpm_length']:
+        if len(cpms) < self.config['conditions']['cpm_length']:
             print("not enough cpms data: {}".format(len(cpms)))
             return self.content
 
@@ -206,12 +212,12 @@ class RecommendFacebook:
 
         for cpm in cpms:
             # 하루 cpm이 최근 n일간 cpm 평균의 1.5배를 넘으면,
-            if cpm > avg_cpm * CONDITIONS['cpm_avg_limit']:
-                reco = RECOS[self.content['lang']]['cpm_avg_limit']
+            if cpm > avg_cpm * self.config['conditions']['cpm_avg_limit']:
+                reco = self.config['recos'][self.content['lang']]['cpm_avg_limit']
                 self.append_reco(reco, ad)
             # 가장 최근일의 cpm이 cpm 평균의 2.0배를 넘으면,
-            elif cpms[-1] > avg_cpm * CONDITIONS['cpm_limit']:
-                reco = RECOS[self.content['lang']]['cpm_limit']
+            elif cpms[-1] > avg_cpm * self.config['conditions']['cpm_limit']:
+                reco = self.config['recos'][self.content['lang']]['cpm_limit']
                 self.append_reco(reco, ad)
             else:
                 pass
@@ -222,7 +228,7 @@ class RecommendFacebook:
     def cpc_check(self, data, ad):
         cpcs = [_data['cost_per_inline_link_click'] for _data in data]
 
-        if len(cpcs) < CONDITIONS['cpc_length']:
+        if len(cpcs) < self.config['conditions']['cpc_length']:
             print("not enough cpcs data: {}".format(len(cpcs)))
             return self.content
 
@@ -231,12 +237,12 @@ class RecommendFacebook:
         # 지출은 있으나, 모든 cpc가 0일 경우 = 링크 클릭이 발생하지 않을 경우,
         if not any(cpcs):
             reco = str(len(cpcs)) + \
-                RECOS[self.content['lang']]['no_link_click']
+                self.config['recos'][self.content['lang']]['no_link_click']
             self.append_reco(reco, ad)
         else:
             # 가장 최근일의 cpm이 cpm 평균의 2.0배를 넘으면,
-            if cpcs[-1] > avg_cpc * CONDITIONS['cpc_limit']:
-                reco = RECOS[self.content['lang']]['cpc_limit']
+            if cpcs[-1] > avg_cpc * self.config['conditions']['cpc_limit']:
+                reco = self.config['recos'][self.content['lang']]['cpc_limit']
                 self.append_reco(reco, ad)
 
         print("cpc_check done: {}".format(datetime.datetime.now()))
@@ -247,7 +253,7 @@ class RecommendFacebook:
             if 'score' in data[-1]['relevance_score']:
                 relevance_score = data[-1]['relevance_score']['score']
                 if relevance_score in ['1', '2', '3']:
-                    reco = RECOS[self.content['lang']]['relevance_score']
+                    reco = self.config['recos'][self.content['lang']]['relevance_score']
                     self.append_reco(reco, ad)
 
         print("relevance_score_check done: {}".format(datetime.datetime.now()))

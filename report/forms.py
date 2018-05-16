@@ -1,3 +1,5 @@
+from .config import MAIL_FORM
+
 import datetime
 
 
@@ -6,6 +8,9 @@ def create_mail_facebook(content):
     '''
     if not content['facebook']['ads']:
         return False
+
+    lang = content['lang']
+
     form = ''
     # html 시작
     form += '<html>'
@@ -96,16 +101,22 @@ def create_mail_facebook(content):
         '''.format(ad['name'])
         form += '''
         <tr>
-            <th>지표</th>
-            <th>값</th>
+            <th>{}</th>
+            <th>{}</th>
         </tr>
-        '''
-        for key in ad.keys():
-            if key != 'recos':
+        '''.format(MAIL_FORM['translate']['feature'][lang], MAIL_FORM['translate']['value'][lang])
+
+        currency = ad['currency']
+        items = MAIL_FORM['items']
+        
+        for item in items:
+            if item in ad['yesterday']:
                 form += '<tr>'
-                # 인사이트 데이터
-                form += '<td>{}</td>'.format(key)
-                form += '<td>{}</td>'.format(ad[key])
+                form += '<td>{}</td>'.format(MAIL_FORM['translate'][item][lang])
+                item_value = format(round(ad['yesterday'][item], 2), ',')
+                if item in ['spend', 'cost_per_total_action', 'cost_per_inline_post_engagement', 'cpc', 'cost_per_unique_click', 'cost_per_inline_link_click']:
+                    item_value += ' {}'.format(currency)
+                form += '<td>{}</td>'.format(item_value)
                 form += '</tr>'
 
         form += '</table>'
@@ -117,11 +128,11 @@ def create_mail_facebook(content):
                 <tbody>
                 <tr>
                     <th colspan="10"
-                        style="border:1px solid #52A4FC;border-collapse:collapse;background-color:#52A4FC;color: #FFFFFF;padding: 5px;font-size: 13px">
-                        추천 사항
+                        style="border:1px solid #A8D2FF;border-collapse:collapse;background-color:#A8D2FF;color: #FFFFFF;padding: 5px;font-size: 13px">
+                        {}
                     </th>
                 </tr>
-            '''
+            '''.format(MAIL_FORM['translate']['recommendation'][lang])
             for reco in ad['recos']:
                 # tr
                 form += '<tr>'
@@ -135,7 +146,7 @@ def create_mail_facebook(content):
             <tr>
                 <td>
                 <br>
-                <p style="font-size:15px;line-height:20px;font-family: 'AppleSDGothicNeo-Light', Helvetica, Arial, serif; text-align:center;">기간별 광고 데이터 및 자세한 분석은 아래 홈페이지에서 확인 가능합니다</p>
+                <p style="font-size:15px;line-height:20px;font-family: 'AppleSDGothicNeo-Light', Helvetica, Arial, serif; text-align:center;">{}</p>
                 <p style="font-size:15px;line-height:20px;font-family: 'AppleSDGothicNeo-Light', Helvetica, Arial, serif; text-align:center;"><a href="http://www.diana.business">www.diana.business</a></p>
                 <p style="font-size:15px;line-height:20px;font-family: 'AppleSDGothicNeo-Light', Helvetica, Arial, serif; text-align:center;">2017 @ COPYRIGHT - DIANA</p>
                 <img alt="diana logo img" src="https://s3.ap-northeast-2.amazonaws.com/wizpace/diana_notification/diana_logo_gray.png" width="104px" height="auto" style="padding: 10px" />
@@ -144,7 +155,7 @@ def create_mail_facebook(content):
         </table>
     </body>
     </html>
-    '''
+    '''.format(MAIL_FORM['translate']['footer_message'][lang])
     return form
 
 def create_mail_naver(content):
