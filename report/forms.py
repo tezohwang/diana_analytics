@@ -109,13 +109,14 @@ def create_mail_facebook(content):
 
         currency = ad['currency']
         items = MAIL_FORM['items']
-        
+
         for item in items:
             if item in ad['yesterday']:
                 form += '<tr>'
-                form += '<td>{}</td>'.format(MAIL_FORM['translate'][item][lang])
+                form += '<td>{}</td>'.format(
+                    MAIL_FORM['translate'][item][lang])
                 item_value = format(round(ad['yesterday'][item], 2), ',')
-                if item in ['spend', 'cost_per_total_action', 'cost_per_inline_post_engagement', 'cpc', 'cost_per_unique_click', 'cost_per_inline_link_click']:
+                if item in ['spend', 'cpm', 'cost_per_total_action', 'cost_per_inline_post_engagement', 'cpc', 'cost_per_unique_click', 'cost_per_inline_link_click']:
                     item_value += ' {}'.format(currency)
                 form += '<td>{}</td>'.format(item_value)
                 form += '</tr>'
@@ -158,6 +159,7 @@ def create_mail_facebook(content):
     </html>
     '''.format(MAIL_FORM['translate']['footer_message'][lang])
     return form
+
 
 def create_mail_naver(content):
     '''

@@ -28,6 +28,7 @@ MAIL_FORM = {
     "items": [
         "spend",
         "impressions",
+        "cpm",
         "reach",
         "frequency",
         "total_actions",
@@ -64,6 +65,10 @@ MAIL_FORM = {
         "impressions": {
             "en": "Impressions",
             "kr": "노출",
+        },
+        "cpm": {
+            "en": "CPM",
+            "kr": "CPM",
         },
         "reach": {
             "en": "Reach",
