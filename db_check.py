@@ -20,8 +20,11 @@ def main():
         time_now = datetime.datetime.now().strftime('%H%M%S')
         if '230000' > time_now and time_now > '070000':
             data = json.dumps({"DB Error": str(e)}).encode('utf-8')
-            r = requests.post('http://127.0.0.1:8000/report/send_mail', data=data)
-            print(r)
+            try:
+                r = requests.post('http://127.0.0.1:8000/report/send_mail', data=data)
+                print(r)
+            except Exception as e:
+                print(str(e))
         print("DB Error send_mail done: {}".format(datetime.datetime.now()))
 
 
