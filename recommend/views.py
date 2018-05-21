@@ -28,6 +28,16 @@ class RecommendFacebook:
             {"type": "facebook"}
         ))
         for user in users:
+
+            user_member_true = self.db['members'].find_one(
+                {
+                    "user_id": user['user_id'],
+                    "receive_notifications": True,
+                }
+            )
+            if not user_member_true:
+                continue
+
             ## for test ##
             # user['email'] = 'tony.hwang@wizpace.com'
 
@@ -37,7 +47,7 @@ class RecommendFacebook:
                 "user_id": user['user_id'],
                 "network_id": user['network_id'],
                 "username": user['name'],
-                "user_email": [user['email']],
+                "user_email": [user_member_true['email']],
                 "facebook": {
                     "ads": [],
                 },
@@ -326,14 +336,20 @@ class RecommendNaver:
         ))
         for user in users:
 
-            user_member = self.members.find_one(
-                {"user_id": user['user_id']}
+            user_member_true = self.members.find_one(
+                {
+                    "user_id": user['user_id'],
+                    "receive_notifications": True,
+                }
             )
+            if not user_member_true:
+                continue
+            
             # default email value
             # user_email = "tony.hwang@wizpace.com"
             user_email = ""
-            if user_member:
-                user_email = user_member['email']
+            if user_member_true:
+                user_email = user_member_true['email']
 
             adaccounts = self.nvaccounts.find(
                 {"user_id": user['user_id']},
